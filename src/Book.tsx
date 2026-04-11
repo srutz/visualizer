@@ -41,7 +41,9 @@ type BookProps = {
   // 1-based. Plain clicks still flip the book; the modifier splits
   // the two gestures cleanly with no timing hack.
   onPageOpen?: (pageNumber: number) => void
-
+  // Initial rotation of the whole book, in radians [x, y, z]. Useful for
+  // angling the book on a table without wrapping it in another group.
+  rotation?: [number, number, number]
 }
 
 const defaultDrawPage: DrawPage = (ctx, pageNumber, w, h, debug) => {
@@ -125,6 +127,7 @@ export function Book({
   drawPage = defaultDrawPage,
   pageImages,
   onPageOpen,
+  rotation = [0, 0, 0],
   debug = false,
 }: BookProps) {
   // step 0          : book closed.
@@ -142,6 +145,24 @@ export function Book({
     return () => window.clearTimeout(id)
   }, [])
 
+  // Keyboard navigation: arrows and PageUp/PageDown drive the same step
+  // forward/back as clicks. Bound on window so the user doesn't have to
+  // focus the canvas first.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return
+      if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+        e.preventDefault()
+        setStep((p) => Math.min(p + 1, maxStep))
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        e.preventDefault()
+        setStep((p) => Math.max(p - 1, 0))
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [maxStep])
+
   const totalPagesThickness = pageCount * pageThickness
   const pagesStartY = -totalPagesThickness / 2
 
@@ -157,13 +178,19 @@ export function Book({
     }
   }
 
+  const turnBack = (e: ThreeEvent<MouseEvent>) => {
+    e.stopPropagation()
+    e.nativeEvent.preventDefault()
+    setStep((p) => Math.max(p - 1, 0))
+  }
+
   const coverOpen = step > 0
   const flippedSheets = Math.max(0, step - 1)
   const coverWidth = width + 0.06
   const coverHeight = height + 0.06
 
   return (
-    <group onClick={turn}>
+    <group rotation={rotation} onClick={turn} onContextMenu={turnBack}>
       {/* Back cover: sits below all pages, never animates */}
       <mesh
         castShadow
