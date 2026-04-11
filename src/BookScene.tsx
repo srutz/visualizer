@@ -13,7 +13,7 @@ import { Book } from './Book'
 // ceil(BOOK_PAGE_COUNT / 2). Any missing image falls back to a rendered
 // page number, so you can safely tweak these before the files exist.
 const BOOK_DIR = 'cv_stepanrutz'
-const BOOK_PAGE_COUNT = 3
+const BOOK_PAGE_COUNT = 4
 // Optional original PDF. When set, Ctrl/⌘-clicking a page opens an
 // HTML overlay with the browser's native PDF viewer at that page —
 // perfect-quality vectors, no PNG rasterization. Set to null to
