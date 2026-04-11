@@ -1,8 +1,14 @@
-# Visualizer
+# Visualizer (Visualizes PDFs as 3D books)
 
-by stepan.rutz (https://www.stepanrutz.com)
+by stepan.rutz (https://www.stepanrutz.com). Licensed under MIT. 
 
-... React + TypeScript + Vite
+## Live demo
 
-The React Compiler is enabled on this project.
+https://stepanrutz.github.io/visualizer/
+
+## Techstack
+
+... React + TypeScript + Vite and of course the React Compiler is enabled on this project.
+
+
 
