@@ -155,7 +155,7 @@ function PageNavButtons() {
         onClick={() => flip('PageUp')}
         title="Previous page"
         aria-label="Previous page"
-        className="px-[64px] py-2 bg-black/60 text-white text-xs sm:text-sm backdrop-blur-sm shadow flex gap-2 items-center"
+        className="px-[32px] py-2 bg-black/60 text-white text-xs sm:text-sm backdrop-blur-sm shadow flex gap-2 items-center"
       >
         <FaArrowLeft className="w-5 h-5" />
       </button>
@@ -164,7 +164,7 @@ function PageNavButtons() {
         onClick={() => flip('PageDown')}
         title="Next page"
         aria-label="Next page"
-        className="px-[64px] py-2 bg-black/60 text-white text-xs sm:text-sm backdrop-blur-sm shadow flex gap-2 items-center"
+        className="px-[32px] py-2 bg-black/60 text-white text-xs sm:text-sm backdrop-blur-sm shadow flex gap-2 items-center"
       >
         <FaArrowRight className="w-5 h-5" />
       </button>
