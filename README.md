@@ -4,7 +4,7 @@ by stepan.rutz ([https://www.stepanrutz.com](https://www.stepanrutz.com)). Licen
 
 ## Live demo
 
-[https://stepanrutz.github.io/visualizer/](https://stepanrutz.github.io/visualizer/)
+[https://srutz.github.io/visualizer/](https://srutz.github.io/visualizer/)
 
 ## Techstack
 
