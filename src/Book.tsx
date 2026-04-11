@@ -241,6 +241,39 @@ export function Book({
     return () => window.clearTimeout(id)
   }, [])
 
+  // Right-click is also OrbitControls' pan gesture, so a right-drag must
+  // NOT count as a flip-back. We track the right-button press at the
+  // window level: record the down position, mark `dragged` as soon as the
+  // pointer moves more than a few pixels, and let `turnBack` (fired from
+  // the contextmenu event after release) consult the flag. The flag stays
+  // valid through contextmenu because we only reset it on the next
+  // right-button press, not on release.
+  const rightDownPos = useRef<{ x: number; y: number } | null>(null)
+  const rightDragged = useRef(false)
+  useEffect(() => {
+    const DRAG_THRESHOLD_PX = 5
+    const onDown = (e: PointerEvent) => {
+      if (e.button !== 2) return
+      rightDownPos.current = { x: e.clientX, y: e.clientY }
+      rightDragged.current = false
+    }
+    const onMove = (e: PointerEvent) => {
+      const start = rightDownPos.current
+      if (!start) return
+      const dx = e.clientX - start.x
+      const dy = e.clientY - start.y
+      if (dx * dx + dy * dy > DRAG_THRESHOLD_PX * DRAG_THRESHOLD_PX) {
+        rightDragged.current = true
+      }
+    }
+    window.addEventListener('pointerdown', onDown)
+    window.addEventListener('pointermove', onMove)
+    return () => {
+      window.removeEventListener('pointerdown', onDown)
+      window.removeEventListener('pointermove', onMove)
+    }
+  }, [])
+
   // Keyboard navigation: arrows and PageUp/PageDown drive the same step
   // forward/back as clicks. Bound on window so the user doesn't have to
   // focus the canvas first.
@@ -277,6 +310,10 @@ export function Book({
   const turnBack = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation()
     e.nativeEvent.preventDefault()
+    // Browsers fire contextmenu after pointerup, so by this point the
+    // window listeners above have decided whether the press was a click
+    // or a pan. Suppress the flip if the user was orbiting.
+    if (rightDragged.current) return
     setStep((p) => Math.max(p - 1, 0))
   }
 
