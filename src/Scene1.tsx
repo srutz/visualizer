@@ -2,15 +2,7 @@
 
 import { AccumulativeShadows, Center, OrbitControls, RandomizedLight } from '@react-three/drei'
 import { Canvas } from '@react-three/fiber'
-
-function Cube() {
-  return (
-    <mesh castShadow receiveShadow>
-      <boxGeometry args={[1, 1, 1]} />
-      <meshStandardMaterial color="white" />
-    </mesh>
-  )
-}
+import { Book } from './Book'
 
 
 function SceneContent() {
@@ -20,7 +12,7 @@ function SceneContent() {
       <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} decay={0} intensity={Math.PI} />
       <group position={[0, -0.25, 0]}>
         <Center top position={[0, 0.3, 0]} >
-          <Cube />
+          <Book pageCount={12} />
         </Center>
         <AccumulativeShadows temporal frames={100} color={shadow} opacity={1.05}>
           <RandomizedLight radius={5} position={[10, 5, -5]} />
@@ -33,7 +25,7 @@ function SceneContent() {
 
 export default function Scene() {
   return (
-    <Canvas shadows dpr={[1, 1.5]} gl={{ antialias: false }} camera={{ position: [-5, 5, 14], fov: 20 }}>
+    <Canvas shadows dpr={[1, 1.5]} gl={{ antialias: false }} camera={{ position: [-6, 6, 10], fov: 28 }}>
       <SceneContent />
     </Canvas>
   )
