@@ -1,6 +1,6 @@
 
 
-import { AccumulativeShadows, Center, OrbitControls, RandomizedLight } from '@react-three/drei'
+import { Center, ContactShadows, OrbitControls } from '@react-three/drei'
 import { Canvas } from '@react-three/fiber'
 import { useEffect, useState } from 'react'
 import { Book } from './Book'
@@ -13,7 +13,7 @@ import { Book } from './Book'
 // page number, so you can safely tweak these before the files exist.
 const BOOK_DIR = 'cv_stepanrutz'
 const BOOK_PAGE_COUNT = 3
-// Optional original PDF. When set, double-clicking a page opens an
+// Optional original PDF. When set, Ctrl/⌘-clicking a page opens an
 // HTML overlay with the browser's native PDF viewer at that page —
 // perfect-quality vectors, no PNG rasterization. Set to null to
 // disable the overlay feature.
@@ -26,27 +26,36 @@ const pageImages = Array.from(
 const sheetCount = Math.ceil(BOOK_PAGE_COUNT / 2)
 
 function SceneContent({
-  onPageDoubleClick,
+  onPageOpen,
 }: {
-  onPageDoubleClick?: (pageNumber: number) => void
+  onPageOpen?: (pageNumber: number) => void
 }) {
-  const { shadow } = { shadow: '#888888' }
-  const shadows = !false
+  const shadows = true
   return (
     <>
       <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} decay={0} intensity={Math.PI} />
       <group position={[0, -0.25, 0]}>
-        <Center top position={[0, 0.3, 0]} >
+        <Center top position={[1, 0.3, 0]} >
           <Book
             pageCount={sheetCount}
             pageImages={pageImages}
-            onPageDoubleClick={onPageDoubleClick}
+            onPageOpen={onPageOpen}
           />
         </Center>
         {shadows && (
-          <AccumulativeShadows temporal frames={100} color={shadow} opacity={1.05}>
-            <RandomizedLight radius={5} position={[10, 15, -5]} />
-          </AccumulativeShadows>
+          // ContactShadows is a real-time shadow that re-renders every
+          // frame, so it tracks the book as it opens / closes / flips.
+          // AccumulativeShadows by contrast bakes once and freezes —
+          // fine for static scenes, wrong for an animating book.
+          <ContactShadows
+            position={[0, 0.005, 0]}
+            scale={10}
+            resolution={1024}
+            far={3}
+            blur={2.5}
+            opacity={0.6}
+            color="#000000"
+          />
         )}
       </group>
       <OrbitControls enablePan={false} minPolarAngle={0} maxPolarAngle={Math.PI / 2.25} />
@@ -113,6 +122,30 @@ function PdfOverlay({
   )
 }
 
+function Header() {
+  return (
+    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-40 ">
+      <div className="px-[64px] py-2 bg-black/60 text-white text-xs sm:text-sm ">
+        PDF Visualizer by <a href="https://www.stepanrutz.com" target="_blank" rel="noopener noreferrer" className="underline">Stepan Rutz</a>
+      </div>
+    </div>
+  )
+}
+
+function SceneHint() {
+  const modKey =
+    typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
+      ? '⌘'
+      : 'Ctrl'
+  return (
+    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 pointer-events-none">
+      <div className="px-4 py-2 rounded-full bg-black/60 text-white text-xs sm:text-sm backdrop-blur-sm shadow">
+        Click to flip · Shift+Click to flip back · {modKey}+Click to open PDF
+      </div>
+    </div>
+  )
+}
+
 export default function Scene() {
   const [overlayPage, setOverlayPage] = useState<number | null>(null)
 
@@ -120,11 +153,13 @@ export default function Scene() {
     <>
       <Canvas shadows dpr={[1, 1.5]} gl={{ antialias: false }} camera={{ position: [-6, 6, 10], fov: 28 }}>
         <SceneContent
-          onPageDoubleClick={
+          onPageOpen={
             BOOK_PDF_URL ? (pageNumber) => setOverlayPage(pageNumber) : undefined
           }
         />
       </Canvas>
+      <Header />
+      <SceneHint />
       {BOOK_PDF_URL && overlayPage !== null && (
         <PdfOverlay
           url={BOOK_PDF_URL}

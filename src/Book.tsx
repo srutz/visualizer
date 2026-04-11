@@ -37,11 +37,10 @@ type BookProps = {
   // (i.e. pageImages[0] is the image for page 1). Any slot left empty,
   // null, or undefined falls back to drawPage for that page.
   pageImages?: (string | null | undefined)[]
-  // Fires when a page face is double-clicked. The page number is
-  // 1-based. Single clicks still flip the book, but they are delayed
-  // briefly so a double-click cancels the flip and dispatches this
-  // callback instead.
-  onPageDoubleClick?: (pageNumber: number) => void
+  // Fires when a page face is Ctrl/⌘-clicked. The page number is
+  // 1-based. Plain clicks still flip the book; the modifier splits
+  // the two gestures cleanly with no timing hack.
+  onPageOpen?: (pageNumber: number) => void
 
 }
 
@@ -70,7 +69,7 @@ function usePageTexture(pageNumber: number, draw: DrawPage, debug) {
     tex.anisotropy = 4
     tex.needsUpdate = true
     return tex
-  }, [pageNumber, draw])
+  }, [pageNumber, draw, debug])
   useEffect(() => () => texture.dispose(), [texture])
   return texture
 }
@@ -244,6 +243,7 @@ export function Book({
             drawPage={drawPage}
             frontImageUrl={pageImages?.[frontPage - 1] ?? null}
             backImageUrl={pageImages?.[backPage - 1] ?? null}
+            debug={debug}
             onFaceDoubleClick={
               onPageDoubleClick ? handleFaceDoubleClick : undefined
             }
@@ -339,6 +339,7 @@ function Sheet({
   restY,
   flippedY,
   flipped,
+  debug,
   drawPage,
   frontImageUrl,
   backImageUrl,
@@ -351,6 +352,7 @@ function Sheet({
   restY: number
   flippedY: number
   flipped: boolean
+  debug: boolean,
   drawPage: DrawPage
   frontImageUrl: string | null | undefined
   backImageUrl: string | null | undefined
@@ -371,8 +373,8 @@ function Sheet({
 
   const frontPage = index * 2 + 1
   const backPage = index * 2 + 2
-  const frontFallback = usePageTexture(frontPage, drawPage, false)
-  const backFallback = usePageTexture(backPage, drawPage, false)
+  const frontFallback = usePageTexture(frontPage, drawPage, debug)
+  const backFallback = usePageTexture(backPage, drawPage, debug)
   const frontImage = useImageTexture(frontImageUrl)
   const backImage = useImageTexture(backImageUrl)
   const frontTexture = frontImage ?? frontFallback
