@@ -329,6 +329,7 @@ function Sheet({
   const backImage = useImageTexture(backImageUrl)
   const frontTexture = frontImage ?? frontFallback
   const backTexture = backImage ?? backFallback
+  console.log('render sheet', index, { frontImageUrl, backImageUrl, frontTexture, backTexture })
 
   // Lift the page art a hair off the paper mesh so it doesn't z-fight.
   const lift = thickness / 2 + 0.0005

@@ -10,8 +10,8 @@ import { Book } from './Book'
 // A book has two pages per sheet, so the number of physical sheets is
 // ceil(BOOK_PAGE_COUNT / 2). Any missing image falls back to a rendered
 // page number, so you can safely tweak these before the files exist.
-const BOOK_DIR = 'book1'
-const BOOK_PAGE_COUNT = 24
+const BOOK_DIR = 'cv_stepanrutz'
+const BOOK_PAGE_COUNT = 12
 
 const pageImages = Array.from(
   { length: BOOK_PAGE_COUNT },
