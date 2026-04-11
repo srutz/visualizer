@@ -124,7 +124,7 @@ export function Book({
   coverThickness = 0.05,
   drawPage = defaultDrawPage,
   pageImages,
-  onPageDoubleClick,
+  onPageOpen,
   debug = false,
 }: BookProps) {
   // step 0          : book closed.
@@ -135,47 +135,27 @@ export function Book({
   const [step, setStep] = useState(0)
   const maxStep = pageCount + 1
 
+  // Auto-open the cover shortly after mount so the book doesn't greet the
+  // user closed. Only runs once — user interaction afterwards is unaffected.
+  useEffect(() => {
+    const id = window.setTimeout(() => setStep((p) => (p === 0 ? 1 : p)), 500)
+    return () => window.clearTimeout(id)
+  }, [])
+
   const totalPagesThickness = pageCount * pageThickness
   const pagesStartY = -totalPagesThickness / 2
 
-  // Hold single-click page-flips just long enough that a double-click
-  // on a page face can cancel them — otherwise a dbl-click would flip
-  // the book twice AND open the overlay. The 220ms window is enough
-  // to catch a typical dblclick (which fires right after click #2)
-  // without making single clicks feel sluggish.
-  const pendingTurnRef = useRef<number | null>(null)
-
   const turn = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation()
-    const shift = e.nativeEvent.shiftKey
-    if (pendingTurnRef.current != null) {
-      window.clearTimeout(pendingTurnRef.current)
+    // Ctrl/⌘-click is reserved for opening the page overlay — handled by
+    // the Sheet face meshes below. Here we only care about plain/shift clicks.
+    if (e.nativeEvent.ctrlKey || e.nativeEvent.metaKey) return
+    if (e.nativeEvent.shiftKey) {
+      setStep((p) => Math.max(p - 1, 0))
+    } else {
+      setStep((p) => Math.min(p + 1, maxStep))
     }
-    pendingTurnRef.current = window.setTimeout(() => {
-      pendingTurnRef.current = null
-      if (shift) {
-        setStep((p) => Math.max(p - 1, 0))
-      } else {
-        setStep((p) => Math.min(p + 1, maxStep))
-      }
-    }, 220)
   }
-
-  const handleFaceDoubleClick = (pageNumber: number) => {
-    if (pendingTurnRef.current != null) {
-      window.clearTimeout(pendingTurnRef.current)
-      pendingTurnRef.current = null
-    }
-    onPageDoubleClick?.(pageNumber)
-  }
-
-  useEffect(() => {
-    return () => {
-      if (pendingTurnRef.current != null) {
-        window.clearTimeout(pendingTurnRef.current)
-      }
-    }
-  }, [])
 
   const coverOpen = step > 0
   const flippedSheets = Math.max(0, step - 1)
@@ -244,9 +224,7 @@ export function Book({
             frontImageUrl={pageImages?.[frontPage - 1] ?? null}
             backImageUrl={pageImages?.[backPage - 1] ?? null}
             debug={debug}
-            onFaceDoubleClick={
-              onPageDoubleClick ? handleFaceDoubleClick : undefined
-            }
+            onFaceOpen={onPageOpen}
           />
         )
       })}
@@ -343,7 +321,7 @@ function Sheet({
   drawPage,
   frontImageUrl,
   backImageUrl,
-  onFaceDoubleClick,
+  onFaceOpen,
 }: {
   index: number
   width: number
@@ -356,7 +334,7 @@ function Sheet({
   drawPage: DrawPage
   frontImageUrl: string | null | undefined
   backImageUrl: string | null | undefined
-  onFaceDoubleClick?: (pageNumber: number) => void
+  onFaceOpen?: (pageNumber: number) => void
 }) {
   const groupRef = useRef<THREE.Group>(null!)
   const target = flipped ? Math.PI : 0
@@ -395,11 +373,12 @@ function Sheet({
       <mesh
         position={[width / 2, lift, 0]}
         rotation={[-Math.PI / 2, 0, 0]}
-        onDoubleClick={
-          onFaceDoubleClick
+        onClick={
+          onFaceOpen
             ? (e) => {
+              if (!e.nativeEvent.ctrlKey && !e.nativeEvent.metaKey) return
               e.stopPropagation()
-              onFaceDoubleClick(frontPage)
+              onFaceOpen(frontPage)
             }
             : undefined
         }
@@ -413,11 +392,12 @@ function Sheet({
       <mesh
         position={[width / 2, -lift, 0]}
         rotation={[Math.PI / 2, 0, Math.PI]}
-        onDoubleClick={
-          onFaceDoubleClick
+        onClick={
+          onFaceOpen
             ? (e) => {
+              if (!e.nativeEvent.ctrlKey && !e.nativeEvent.metaKey) return
               e.stopPropagation()
-              onFaceDoubleClick(backPage)
+              onFaceOpen(backPage)
             }
             : undefined
         }
