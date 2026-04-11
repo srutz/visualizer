@@ -40,6 +40,47 @@ export async function loadPdfAsBook(
   onProgress?: LoadProgress,
 ): Promise<LoadedPdf> {
   const buffer = await file.arrayBuffer()
+  const name = file.name.replace(/\.pdf$/i, '') || 'document'
+  return rasterizePdfBuffer(buffer, name, maxPages, onProgress)
+}
+
+// Fetch a PDF from a URL and rasterize it the same way as a dropped
+// file. Supports both absolute and relative URLs. Cross-origin URLs
+// only work if the remote server sends permissive CORS headers — the
+// browser will otherwise reject the fetch and the caller gets a
+// "Failed to fetch" error.
+export async function loadPdfFromUrl(
+  url: string,
+  maxPages: number,
+  onProgress?: LoadProgress,
+): Promise<LoadedPdf> {
+  // Signal "fetch in progress" before the byte-level work starts, so
+  // the loading overlay shows up immediately for slow networks.
+  onProgress?.(0, 0)
+  const res = await fetch(url)
+  if (!res.ok) {
+    throw new Error(`Failed to fetch PDF: ${res.status} ${res.statusText}`)
+  }
+  const buffer = await res.arrayBuffer()
+  // Derive a display name from the URL's last path segment.
+  let name = 'document'
+  try {
+    const parsed = new URL(url, window.location.href)
+    const last = parsed.pathname.split('/').filter(Boolean).pop()
+    if (last) name = decodeURIComponent(last).replace(/\.pdf$/i, '') || 'document'
+  } catch {
+    // Fall through with the default name.
+  }
+  return rasterizePdfBuffer(buffer, name, maxPages, onProgress)
+}
+
+// Shared rasterization core used by both the File and URL entry points.
+async function rasterizePdfBuffer(
+  buffer: ArrayBuffer,
+  name: string,
+  maxPages: number,
+  onProgress?: LoadProgress,
+): Promise<LoadedPdf> {
   // Make a copy for pdfjs to consume — it will transfer/detach the
   // buffer it's given, and we still need the original bytes for the
   // overlay's iframe src.
@@ -84,7 +125,6 @@ export async function loadPdfAsBook(
       onProgress?.(i, pageCount)
     }
 
-    const name = file.name.replace(/\.pdf$/i, '') || 'document'
     return {
       pageImages,
       pdfUrl,

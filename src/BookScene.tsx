@@ -158,7 +158,6 @@ function PageNavButtons() {
         className="px-[64px] py-2 bg-black/60 text-white text-xs sm:text-sm backdrop-blur-sm shadow flex gap-2 items-center"
       >
         <FaArrowLeft className="w-5 h-5" />
-        Back
       </button>
       <button
         type="button"
@@ -167,7 +166,6 @@ function PageNavButtons() {
         aria-label="Next page"
         className="px-[64px] py-2 bg-black/60 text-white text-xs sm:text-sm backdrop-blur-sm shadow flex gap-2 items-center"
       >
-        Forward
         <FaArrowRight className="w-5 h-5" />
       </button>
     </div>
@@ -356,6 +354,48 @@ export function BookScene() {
       setError(err instanceof Error ? err.message : 'Failed to load PDF.')
     } finally {
       setLoading(null)
+    }
+  }, [])
+
+  // On first mount, honor a ?pdf=<url> query parameter by fetching
+  // that PDF and loading it through the same rasterizer the drop/upload
+  // path uses. Cross-origin URLs require permissive CORS on the remote
+  // server; otherwise fetch will fail and we surface the error.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const pdfParam = params.get('pdf')
+    if (!pdfParam) return
+    let cancelled = false
+      ; (async () => {
+        setError(null)
+        setLoading({ current: 0, total: 0 })
+        try {
+          const { loadPdfFromUrl, revokeLoadedPdf } = await import('./pdfLoader')
+          const loaded = await loadPdfFromUrl(pdfParam, MAX_USER_PDF_PAGES, (cur, total) => {
+            if (!cancelled) setLoading({ current: cur, total })
+          })
+          if (cancelled) {
+            // Component unmounted mid-load — release the blob URLs we made.
+            revokeLoadedPdf(loaded)
+            return
+          }
+          setCustomBook(loaded)
+          if (loaded.truncated) {
+            setError(
+              `Only the first ${loaded.pageCount} of ${loaded.totalPages} pages were rendered.`,
+            )
+          }
+          setOverlayPage(null)
+        } catch (err) {
+          if (cancelled) return
+          console.error('Failed to load PDF from URL', err)
+          setError(err instanceof Error ? err.message : 'Failed to load PDF from URL.')
+        } finally {
+          if (!cancelled) setLoading(null)
+        }
+      })()
+    return () => {
+      cancelled = true
     }
   }, [])
 
