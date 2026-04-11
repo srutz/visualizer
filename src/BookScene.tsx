@@ -179,8 +179,8 @@ export function BookScene() {
       <Canvas
         shadows
         dpr={[1, 2]}
-        gl={{ antialias: true, samples: 4 }}
-        camera={{ position: [-6, 6, 10], fov: 28 }}
+        gl={{ antialias: true }}
+        camera={{ position: [-2, 6, 6], fov: 28 }}
         onContextMenu={(e) => e.preventDefault()}
       >
         <SceneContent
