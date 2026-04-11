@@ -116,16 +116,27 @@ export function Book({
         <meshStandardMaterial color="#2a1810" roughness={0.9} />
       </mesh>
 
-      {/* Front cover — flips like a page when the book opens */}
+      {/* Front cover — flips like a page when the book opens.
+          We hinge it around the MIDDLE of the page stack instead of the top
+          so that a 180° rotation lands it at table level on the left side
+          (mirroring the back cover), with all the flipped sheets sitting on
+          top of it like a real open book. */}
       <Cover
         width={coverWidth}
         height={coverHeight}
         thickness={coverThickness}
-        yPosition={pagesStartY + totalPagesThickness + coverThickness / 2}
+        hingeY={pagesStartY + totalPagesThickness / 2}
+        meshYOffset={totalPagesThickness / 2 + coverThickness / 2}
         open={coverOpen}
       />
 
-      {/* Paper sheets */}
+      {/* Paper sheets.
+          restY: position when unflipped — sheet 0 sits on TOP of the right
+                 stack so the first click flips the topmost page first.
+          flippedY: position when fully flipped — order is REVERSED so the
+                    most recently flipped sheet ends up on top of the left
+                    stack, like a real book. Sheet i animates between the
+                    two as it rotates. */}
       {Array.from({ length: pageCount }, (_, i) => (
         <Sheet
           key={i}
@@ -133,9 +144,10 @@ export function Book({
           width={width}
           height={height}
           thickness={pageThickness}
-          yPosition={
+          restY={
             pagesStartY + (pageCount - 1 - i) * pageThickness + pageThickness / 2
           }
+          flippedY={pagesStartY + i * pageThickness + pageThickness / 2}
           flipped={i < currentPage}
           drawPage={drawPage}
         />
@@ -148,13 +160,15 @@ function Cover({
   width,
   height,
   thickness,
-  yPosition,
+  hingeY,
+  meshYOffset,
   open,
 }: {
   width: number
   height: number
   thickness: number
-  yPosition: number
+  hingeY: number
+  meshYOffset: number
   open: boolean
 }) {
   const groupRef = useRef<THREE.Group>(null!)
@@ -167,8 +181,8 @@ function Cover({
   })
 
   return (
-    <group ref={groupRef} position={[0, yPosition, 0]}>
-      <mesh castShadow receiveShadow position={[width / 2, 0, 0]}>
+    <group ref={groupRef} position={[0, hingeY, 0]}>
+      <mesh castShadow receiveShadow position={[width / 2, meshYOffset, 0]}>
         <boxGeometry args={[width, thickness, height]} />
         <meshStandardMaterial color="#3a2414" roughness={0.8} />
       </mesh>
@@ -181,7 +195,8 @@ function Sheet({
   width,
   height,
   thickness,
-  yPosition,
+  restY,
+  flippedY,
   flipped,
   drawPage,
 }: {
@@ -189,7 +204,8 @@ function Sheet({
   width: number
   height: number
   thickness: number
-  yPosition: number
+  restY: number
+  flippedY: number
   flipped: boolean
   drawPage: DrawPage
 }) {
@@ -200,6 +216,10 @@ function Sheet({
     const g = groupRef.current
     if (!g) return
     g.rotation.z = THREE.MathUtils.damp(g.rotation.z, target, 5, dt)
+    // Drive Y from the rotation progress so position and angle stay in
+    // lockstep — no second damper needed, no risk of them diverging.
+    const t = g.rotation.z / Math.PI
+    g.position.y = THREE.MathUtils.lerp(restY, flippedY, t)
   })
 
   const frontPage = index * 2 + 1
@@ -211,7 +231,7 @@ function Sheet({
   const lift = thickness / 2 + 0.0005
 
   return (
-    <group ref={groupRef} position={[0, yPosition, 0]}>
+    <group ref={groupRef} position={[0, restY, 0]}>
       <mesh castShadow receiveShadow position={[width / 2, 0, 0]}>
         <boxGeometry args={[width, thickness, height]} />
         <meshStandardMaterial color="#fbfaf2" />
