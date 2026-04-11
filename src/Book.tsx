@@ -1,6 +1,5 @@
-import { Html } from '@react-three/drei'
 import { useFrame, type ThreeEvent } from '@react-three/fiber'
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 
 // Coordinate system for a book lying flat on a table:
@@ -11,8 +10,19 @@ import * as THREE from 'three'
 // rotation.z = 0; a flipped page has rotation.z = PI, landing on the
 // -X side.
 
-const HTML_PX_WIDTH = 320
 const PAGE_ASPECT = 1.4 // height / width
+const TEXTURE_PX_WIDTH = 512
+
+// A DrawPage paints one page into a 2D canvas. Returning a callback
+// (instead of a React component) keeps the page rendering inside the
+// WebGL pipeline — and is exactly what pdf.js wants when we hook up
+// real PDFs later: pdf.page.render({ canvasContext, viewport }).
+export type DrawPage = (
+  ctx: CanvasRenderingContext2D,
+  pageNumber: number,
+  width: number,
+  height: number,
+) => void
 
 type BookProps = {
   pageCount: number
@@ -20,30 +30,35 @@ type BookProps = {
   height?: number
   pageThickness?: number
   coverThickness?: number
-  // Render prop so later we can swap in images extracted from a PDF —
-  // any plain 2D React component works.
-  renderPage?: (pageNumber: number) => ReactNode
+  drawPage?: DrawPage
 }
 
-const defaultRenderPage = (pageNumber: number) => (
-  <div
-    style={{
-      width: HTML_PX_WIDTH,
-      height: HTML_PX_WIDTH * PAGE_ASPECT,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontFamily: 'Georgia, serif',
-      fontSize: HTML_PX_WIDTH * 0.55,
-      color: '#2a2014',
-      background: '#fbfaf2',
-      userSelect: 'none',
-      boxSizing: 'border-box',
-    }}
-  >
-    {pageNumber}
-  </div>
-)
+const defaultDrawPage: DrawPage = (ctx, pageNumber, w, h) => {
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, w, h)
+  ctx.fillStyle = '#2a2014'
+  ctx.font = `${Math.floor(w * 0.7)}px Georgia, serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(String(pageNumber), w / 2, h / 2)
+}
+
+function usePageTexture(pageNumber: number, draw: DrawPage) {
+  const texture = useMemo(() => {
+    const canvas = document.createElement('canvas')
+    canvas.width = TEXTURE_PX_WIDTH
+    canvas.height = Math.round(TEXTURE_PX_WIDTH * PAGE_ASPECT)
+    const ctx = canvas.getContext('2d')!
+    draw(ctx, pageNumber, canvas.width, canvas.height)
+    const tex = new THREE.CanvasTexture(canvas)
+    tex.colorSpace = THREE.SRGBColorSpace
+    tex.anisotropy = 4
+    tex.needsUpdate = true
+    return tex
+  }, [pageNumber, draw])
+  useEffect(() => () => texture.dispose(), [texture])
+  return texture
+}
 
 export function Book({
   pageCount,
@@ -51,7 +66,7 @@ export function Book({
   height = width * PAGE_ASPECT,
   pageThickness = 0.008,
   coverThickness = 0.05,
-  renderPage = defaultRenderPage,
+  drawPage = defaultDrawPage,
 }: BookProps) {
   // currentPage = 0 means the book is closed. currentPage = k means
   // the front cover and sheets 0..k-1 are flipped onto the left side.
@@ -118,9 +133,11 @@ export function Book({
           width={width}
           height={height}
           thickness={pageThickness}
-          yPosition={pagesStartY + i * pageThickness + pageThickness / 2}
+          yPosition={
+            pagesStartY + (pageCount - 1 - i) * pageThickness + pageThickness / 2
+          }
           flipped={i < currentPage}
-          renderPage={renderPage}
+          drawPage={drawPage}
         />
       ))}
     </group>
@@ -166,7 +183,7 @@ function Sheet({
   thickness,
   yPosition,
   flipped,
-  renderPage,
+  drawPage,
 }: {
   index: number
   width: number
@@ -174,7 +191,7 @@ function Sheet({
   thickness: number
   yPosition: number
   flipped: boolean
-  renderPage: (n: number) => ReactNode
+  drawPage: DrawPage
 }) {
   const groupRef = useRef<THREE.Group>(null!)
   const target = flipped ? Math.PI : 0
@@ -187,8 +204,11 @@ function Sheet({
 
   const frontPage = index * 2 + 1
   const backPage = index * 2 + 2
-  // Scale the HTML so HTML_PX_WIDTH css px maps to `width` world units.
-  const htmlScale = width / HTML_PX_WIDTH
+  const frontTexture = usePageTexture(frontPage, drawPage)
+  const backTexture = usePageTexture(backPage, drawPage)
+
+  // Lift the page art a hair off the paper mesh so it doesn't z-fight.
+  const lift = thickness / 2 + 0.0005
 
   return (
     <group ref={groupRef} position={[0, yPosition, 0]}>
@@ -198,35 +218,23 @@ function Sheet({
       </mesh>
 
       {/* Front face: top of the sheet before flipping (becomes an odd page). */}
-      <group
-        position={[width / 2, thickness / 2 + 0.001, 0]}
+      <mesh
+        position={[width / 2, lift, 0]}
         rotation={[-Math.PI / 2, 0, 0]}
-        scale={htmlScale}
       >
-        <Html
-          transform
-          occlude
-          style={{ pointerEvents: 'none' }}
-        >
-          {renderPage(frontPage)}
-        </Html>
-      </group>
+        <planeGeometry args={[width, height]} />
+        <meshBasicMaterial map={frontTexture} toneMapped={false} />
+      </mesh>
 
       {/* Back face: bottom of the sheet before flipping (becomes an even page
           once the sheet is flipped to the left side). */}
-      <group
-        position={[width / 2, -thickness / 2 - 0.001, 0]}
+      <mesh
+        position={[width / 2, -lift, 0]}
         rotation={[Math.PI / 2, 0, Math.PI]}
-        scale={htmlScale}
       >
-        <Html
-          transform
-          occlude
-          style={{ pointerEvents: 'none' }}
-        >
-          {renderPage(backPage)}
-        </Html>
-      </group>
+        <planeGeometry args={[width, height]} />
+        <meshBasicMaterial map={backTexture} toneMapped={false} />
+      </mesh>
     </group>
   )
 }
