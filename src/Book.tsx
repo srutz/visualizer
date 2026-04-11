@@ -77,7 +77,7 @@ const defaultDrawPage: DrawPage = (ctx, pageNumber, w, h, debug) => {
   }
 }
 
-function usePageTexture(pageNumber: number, draw: DrawPage, debug) {
+function usePageTexture(pageNumber: number, draw: DrawPage, debug?: boolean) {
   const texture = useMemo(() => {
     const canvas = document.createElement('canvas')
     canvas.width = TEXTURE_PX_WIDTH
