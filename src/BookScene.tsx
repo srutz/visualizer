@@ -172,6 +172,23 @@ function PageNavButtons() {
   )
 }
 
+// Zen mode: the only chrome we keep besides the page-flip buttons is
+// this tiny GitHub link tucked into the top-left corner.
+function ZenGithubLink() {
+  return (
+    <a
+      href="https://github.com/srutz/visualizer"
+      target="_blank"
+      rel="noopener noreferrer"
+      title="Source code on GitHub"
+      aria-label="Source code on GitHub"
+      className="fixed top-2 left-2 z-40 p-1 text-white/60 hover:text-white/90"
+    >
+      <FaGithub className="w-5 h-5" />
+    </a>
+  )
+}
+
 function PdfDownloadButton({ url, filename }: { url: string; filename: string }) {
   return (
     <a
@@ -304,6 +321,13 @@ export function BookScene() {
   const [loading, setLoading] = useState<{ current: number; total: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
+
+  // ?mode=zen strips all chrome except the page-flip buttons and a
+  // tiny GitHub link. Parsed once via a lazy useState initializer so
+  // we don't re-read window.location on every render.
+  const [isZen] = useState(
+    () => new URLSearchParams(window.location.search).get('mode') === 'zen',
+  )
 
   // Revoke the custom book's blob URLs when it's replaced or the
   // component unmounts. Tied to customBook identity so a new upload
@@ -465,11 +489,12 @@ export function BookScene() {
           }
         />
       </Canvas>
-      <Header onPickFile={handleFile} />
+      {!isZen && <Header onPickFile={handleFile} />}
+      {isZen && <ZenGithubLink />}
       <PageNavButtons />
-      {pdfUrl && <PdfDownloadButton url={pdfUrl} filename={pdfFilename} />}
-      <SceneHint />
-      {dragging && <DropOverlay />}
+      {!isZen && pdfUrl && <PdfDownloadButton url={pdfUrl} filename={pdfFilename} />}
+      {!isZen && <SceneHint />}
+      {dragging && !isZen && <DropOverlay />}
       {loading && <LoadingOverlay current={loading.current} total={loading.total} />}
       {error && <ErrorToast message={error} onDismiss={() => setError(null)} />}
       {pdfUrl && overlayPage !== null && (
