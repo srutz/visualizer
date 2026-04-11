@@ -6,6 +6,22 @@ by stepan.rutz ([https://www.stepanrutz.com](https://www.stepanrutz.com)). Licen
 
 [https://srutz.github.io/visualizer/](https://srutz.github.io/visualizer/)
 
+## Loading your own PDF
+
+You can load a PDF in three ways:
+
+- Drop a PDF file onto the window
+- Click "Load your own PDF" in the header and pick a file
+- Pass a `pdf` query parameter pointing at a PDF URL, e.g.
+  [`?pdf=https://example.com/foo.pdf`](https://srutz.github.io/visualizer/?pdf=https://example.com/foo.pdf)
+
+**Cross-origin note:** the `pdf` query parameter uses `fetch()`, so the
+remote server must send permissive CORS headers
+(`Access-Control-Allow-Origin: *` or the visualizer's origin). Without
+them the browser blocks the request and the app shows a "Failed to
+fetch" error. Same-origin URLs (anything served from the visualizer's
+own domain) always work.
+
 ## Techstack
 
 ... React + TypeScript + Vite and of course the React Compiler is enabled on this project.
@@ -14,6 +30,8 @@ by stepan.rutz ([https://www.stepanrutz.com](https://www.stepanrutz.com)). Licen
 
 Checkout 
 
-[https://github.com/srutz/cagent](https://github.com/srutz/cagent) for the free opensource agent that helped me build this project.
+[https://github.com/srutz/cagent](https://github.com/srutz/cagent) 
+
+for the free opensource agent that helped me build this project.
 
 
