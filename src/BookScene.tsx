@@ -18,11 +18,11 @@ const BOOK_PAGE_COUNT = 4
 // HTML overlay with the browser's native PDF viewer at that page —
 // perfect-quality vectors, no PNG rasterization. Set to null to
 // disable the overlay feature.
-const BOOK_PDF_URL: string | null = `/${BOOK_DIR}/${BOOK_DIR}.pdf`
+const BOOK_PDF_URL: string | null = `${import.meta.env.BASE_URL}${BOOK_DIR}/${BOOK_DIR}.pdf`
 
 const pageImages = Array.from(
   { length: BOOK_PAGE_COUNT },
-  (_, i) => `/${BOOK_DIR}/page-${String(i + 1).padStart(3, '0')}.png`,
+  (_, i) => `${import.meta.env.BASE_URL}${BOOK_DIR}/page-${String(i + 1).padStart(3, '0')}.png`,
 )
 const sheetCount = Math.ceil(BOOK_PAGE_COUNT / 2)
 
