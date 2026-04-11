@@ -10,7 +10,7 @@ import * as THREE from 'three'
 // rotation.z = 0; a flipped page has rotation.z = PI, landing on the
 // -X side.
 
-const PAGE_ASPECT = 1.4 // height / width
+const PAGE_ASPECT = 1.414 // height / width — √2, i.e. A-series paper
 const TEXTURE_PX_WIDTH = 512
 
 // A DrawPage paints one page into a 2D canvas. Returning a callback
@@ -31,6 +31,10 @@ type BookProps = {
   pageThickness?: number
   coverThickness?: number
   drawPage?: DrawPage
+  // Optional image URLs, indexed by 1-based page number minus 1
+  // (i.e. pageImages[0] is the image for page 1). Any slot left empty,
+  // null, or undefined falls back to drawPage for that page.
+  pageImages?: (string | null | undefined)[]
 }
 
 const defaultDrawPage: DrawPage = (ctx, pageNumber, w, h) => {
@@ -60,6 +64,48 @@ function usePageTexture(pageNumber: number, draw: DrawPage) {
   return texture
 }
 
+// Loads an image URL into a Texture, or returns null if no URL is given.
+// Triggers a re-render once loaded so the page can swap from the canvas
+// fallback to the real image.
+function useImageTexture(url: string | null | undefined) {
+  const [texture, setTexture] = useState<THREE.Texture | null>(null)
+
+  useEffect(() => {
+    if (!url) {
+      setTimeout(() => {
+        setTexture(null)
+      }, 0)
+      return
+    }
+    let cancelled = false
+    let loaded: THREE.Texture | null = null
+    new THREE.TextureLoader().load(
+      url,
+      (tex) => {
+        if (cancelled) {
+          tex.dispose()
+          return
+        }
+        tex.colorSpace = THREE.SRGBColorSpace
+        tex.anisotropy = 4
+        loaded = tex
+        setTexture(tex)
+      },
+      undefined,
+      () => {
+        // On load error, leave texture null so the canvas fallback shows.
+      },
+    )
+    return () => {
+      cancelled = true
+      loaded?.dispose()
+      setTexture(null)
+    }
+  }, [url])
+
+  return texture
+}
+
 export function Book({
   pageCount,
   width = 2,
@@ -67,6 +113,7 @@ export function Book({
   pageThickness = 0.008,
   coverThickness = 0.05,
   drawPage = defaultDrawPage,
+  pageImages,
 }: BookProps) {
   // step 0          : book closed.
   // step 1          : cover open, NO sheets flipped (page 1 on top right).
@@ -136,21 +183,27 @@ export function Book({
                     most recently flipped sheet ends up on top of the left
                     stack, like a real book. Sheet i animates between the
                     two as it rotates. */}
-      {Array.from({ length: pageCount }, (_, i) => (
-        <Sheet
-          key={i}
-          index={i}
-          width={width}
-          height={height}
-          thickness={pageThickness}
-          restY={
-            pagesStartY + (pageCount - 1 - i) * pageThickness + pageThickness / 2
-          }
-          flippedY={pagesStartY + i * pageThickness + pageThickness / 2}
-          flipped={i < flippedSheets}
-          drawPage={drawPage}
-        />
-      ))}
+      {Array.from({ length: pageCount }, (_, i) => {
+        const frontPage = i * 2 + 1
+        const backPage = i * 2 + 2
+        return (
+          <Sheet
+            key={i}
+            index={i}
+            width={width}
+            height={height}
+            thickness={pageThickness}
+            restY={
+              pagesStartY + (pageCount - 1 - i) * pageThickness + pageThickness / 2
+            }
+            flippedY={pagesStartY + i * pageThickness + pageThickness / 2}
+            flipped={i < flippedSheets}
+            drawPage={drawPage}
+            frontImageUrl={pageImages?.[frontPage - 1] ?? null}
+            backImageUrl={pageImages?.[backPage - 1] ?? null}
+          />
+        )
+      })}
     </group>
   )
 }
@@ -241,6 +294,8 @@ function Sheet({
   flippedY,
   flipped,
   drawPage,
+  frontImageUrl,
+  backImageUrl,
 }: {
   index: number
   width: number
@@ -250,6 +305,8 @@ function Sheet({
   flippedY: number
   flipped: boolean
   drawPage: DrawPage
+  frontImageUrl: string | null | undefined
+  backImageUrl: string | null | undefined
 }) {
   const groupRef = useRef<THREE.Group>(null!)
   const target = flipped ? Math.PI : 0
@@ -266,8 +323,12 @@ function Sheet({
 
   const frontPage = index * 2 + 1
   const backPage = index * 2 + 2
-  const frontTexture = usePageTexture(frontPage, drawPage)
-  const backTexture = usePageTexture(backPage, drawPage)
+  const frontFallback = usePageTexture(frontPage, drawPage)
+  const backFallback = usePageTexture(backPage, drawPage)
+  const frontImage = useImageTexture(frontImageUrl)
+  const backImage = useImageTexture(backImageUrl)
+  const frontTexture = frontImage ?? frontFallback
+  const backTexture = backImage ?? backFallback
 
   // Lift the page art a hair off the paper mesh so it doesn't z-fight.
   const lift = thickness / 2 + 0.0005

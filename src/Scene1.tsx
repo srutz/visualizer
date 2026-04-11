@@ -4,6 +4,20 @@ import { AccumulativeShadows, Center, OrbitControls, RandomizedLight } from '@re
 import { Canvas } from '@react-three/fiber'
 import { Book } from './Book'
 
+// Point these at whatever you rendered with scripts/pdf-to-pages.sh.
+// BOOK_DIR is the subfolder name you passed to the script (it lives under
+// public/), and BOOK_PAGE_COUNT is the total number of pages in the PDF.
+// A book has two pages per sheet, so the number of physical sheets is
+// ceil(BOOK_PAGE_COUNT / 2). Any missing image falls back to a rendered
+// page number, so you can safely tweak these before the files exist.
+const BOOK_DIR = 'book1'
+const BOOK_PAGE_COUNT = 24
+
+const pageImages = Array.from(
+  { length: BOOK_PAGE_COUNT },
+  (_, i) => `/${BOOK_DIR}/page-${String(i + 1).padStart(3, '0')}.png`,
+)
+const sheetCount = Math.ceil(BOOK_PAGE_COUNT / 2)
 
 function SceneContent() {
   const { shadow } = { shadow: '#000000' }
@@ -13,7 +27,7 @@ function SceneContent() {
       <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} decay={0} intensity={Math.PI} />
       <group position={[0, -0.25, 0]}>
         <Center top position={[0, 0.3, 0]} >
-          <Book pageCount={12} />
+          <Book pageCount={sheetCount} pageImages={pageImages} />
         </Center>
         {shadows && (
           <AccumulativeShadows temporal frames={100} color={shadow} opacity={1.05}>
