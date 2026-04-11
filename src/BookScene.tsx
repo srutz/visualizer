@@ -3,7 +3,7 @@
 import { Center, ContactShadows, OrbitControls } from '@react-three/drei'
 import { Canvas } from '@react-three/fiber'
 import { useEffect, useState } from 'react'
-import { FaFilePdf } from 'react-icons/fa6'
+import { FaFilePdf, FaGithub } from 'react-icons/fa6'
 import { Book } from './Book'
 
 // Point these at whatever you rendered with scripts/pdf-to-pages.sh.
@@ -148,8 +148,11 @@ function PdfDownloadButton({ url }: { url: string }) {
 function Header() {
   return (
     <div className="fixed top-2 left-2 z-40 ">
-      <div className="px-[64px] py-2 bg-black/60 text-white text-xs sm:text-sm backdrop-blur-sm shadow">
-        PDF Visualizer by <a href="https://www.stepanrutz.com" target="_blank" rel="noopener noreferrer" className="underline">Stepan Rutz</a>
+      <div className="px-[64px] py-2 bg-black/60 text-white text-xs sm:text-sm backdrop-blur-sm shadow flex flex-col gap-2 items-center">
+        <div>
+          Free PDF Visualizer by <a href="https://www.stepanrutz.com" target="_blank" rel="noopener noreferrer" className="underline">Stepan Rutz</a>
+        </div>
+        <a href="https://github.com/srutz/visualizer" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 underline"><FaGithub className="w-5 h-5" /> Sourceode </a>
       </div>
     </div>
   )
@@ -167,7 +170,7 @@ function SceneHint() {
         <span className="mx-3">·</span>
         <span>Right-Click/PageUp to flip back</span>
         <span className="mx-3">·</span>
-        <span>{modKey}+Click to open PDF</span>
+        <span>{modKey}+Click to open PDF-Page</span>
       </div>
     </div>
   )
