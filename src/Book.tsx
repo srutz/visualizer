@@ -226,13 +226,17 @@ export function Book({
   rotation = [0, 0, 0],
   debug = false,
 }: BookProps) {
-  // step 0          : book closed.
-  // step 1          : cover open, NO sheets flipped (page 1 on top right).
-  // step k (k >= 2) : cover open, sheets 0..k-2 flipped onto the left side.
+  // step 0                 : book closed.
+  // step 1                 : cover open, NO sheets flipped (page 1 on top right).
+  // step k (2..pageCount+1): cover open, sheets 0..k-2 flipped onto the left side.
+  // step pageCount+2       : every sheet flipped AND the back cover swung up
+  //                          to close on top of the stack — the natural
+  //                          end-of-book gesture, so clicking past the last
+  //                          page actually does something.
   // The cover gets its own "click stage" so the first interaction only
   // swings the cover open without dragging sheet 0 along with it.
   const [step, setStep] = useState(0)
-  const maxStep = pageCount + 1
+  const maxStep = pageCount + 2
 
   // Auto-open the cover shortly after mount so the book doesn't greet the
   // user closed. Only runs once — user interaction afterwards is unaffected.
@@ -318,60 +322,28 @@ export function Book({
   }
 
   const coverOpen = step > 0
-  const flippedSheets = Math.max(0, step - 1)
+  const flippedSheets = Math.min(pageCount, Math.max(0, step - 1))
+  const backCoverClosed = step >= pageCount + 2
   const coverWidth = width + 0.06
   const coverHeight = height + 0.06
 
-  // Lift cover artwork a hair off the box surface, same trick the page
-  // sheets use to avoid z-fighting between the leather and the texture.
-  const coverLift = coverThickness / 2 + 0.0005
-
-  // Image wins over text on every face — only render the text canvas
-  // when the corresponding image prop is empty, so the two never stack.
-  const backCoverInnerImageTex = useImageTexture(backCoverInnerImage)
-  const backCoverOuterImageTex = useImageTexture(backCoverOuterImage)
-  const backCoverInnerTextTex = useTextTexture(
-    backCoverInnerImage ? null : backCoverInnerText,
-  )
-  const backCoverOuterTextTex = useTextTexture(
-    backCoverOuterImage ? null : backCoverOuterText,
-  )
-  const backCoverInnerTex = backCoverInnerImageTex ?? backCoverInnerTextTex
-  const backCoverOuterTex = backCoverOuterImageTex ?? backCoverOuterTextTex
-
   return (
     <group rotation={rotation} onClick={turn} onContextMenu={turnBack}>
-      {/* Back cover: sits below all pages, never animates */}
-      <mesh
-        castShadow
-        receiveShadow
-        position={[width / 2, pagesStartY - coverThickness / 2, 0]}
-      >
-        <boxGeometry args={[coverWidth, coverThickness, coverHeight]} />
-        <meshStandardMaterial color="#3a2414" roughness={0.8} />
-      </mesh>
-
-      {/* Back cover INSIDE — visible from above once the book is open. */}
-      {backCoverInnerTex && (
-        <mesh
-          position={[width / 2, pagesStartY - coverThickness / 2 + coverLift, 0]}
-          rotation={[-Math.PI / 2, 0, 0]}
-        >
-          <planeGeometry args={[coverWidth, coverHeight]} />
-          <meshBasicMaterial map={backCoverInnerTex} toneMapped={false} />
-        </mesh>
-      )}
-
-      {/* Back cover OUTSIDE — visible from below the book. */}
-      {backCoverOuterTex && (
-        <mesh
-          position={[width / 2, pagesStartY - coverThickness / 2 - coverLift, 0]}
-          rotation={[Math.PI / 2, 0, Math.PI]}
-        >
-          <planeGeometry args={[coverWidth, coverHeight]} />
-          <meshBasicMaterial map={backCoverOuterTex} toneMapped={false} />
-        </mesh>
-      )}
+      {/* Back cover — hinges at the spine like the front cover does. While
+          the book is open it sits below the page stack (rotation 0); on the
+          final click it swings 180° to close on top of the flipped pages. */}
+      <BackCover
+        width={coverWidth}
+        height={coverHeight}
+        thickness={coverThickness}
+        hingeY={pagesStartY + totalPagesThickness / 2}
+        meshYOffset={-(totalPagesThickness / 2 + coverThickness / 2)}
+        closed={backCoverClosed}
+        outerImageUrl={backCoverOuterImage}
+        innerImageUrl={backCoverInnerImage}
+        outerText={backCoverOuterText}
+        innerText={backCoverInnerText}
+      />
 
       {/* Spine — shrinks and drops to table level when the book opens. */}
       <Spine
@@ -553,6 +525,88 @@ function Cover({
         >
           <planeGeometry args={[width, height]} />
           <meshBasicMaterial map={innerTex} toneMapped={false} />
+        </mesh>
+      )}
+    </group>
+  )
+}
+
+function BackCover({
+  width,
+  height,
+  thickness,
+  hingeY,
+  meshYOffset,
+  closed,
+  outerImageUrl,
+  innerImageUrl,
+  outerText,
+  innerText,
+}: {
+  width: number
+  height: number
+  thickness: number
+  hingeY: number
+  // Negative — the back cover sits below the hinge while the book is open,
+  // mirroring the front cover which hangs above it.
+  meshYOffset: number
+  closed: boolean
+  outerImageUrl?: string | null
+  innerImageUrl?: string | null
+  outerText?: string | null
+  innerText?: string | null
+}) {
+  const groupRef = useRef<THREE.Group>(null!)
+  const target = closed ? Math.PI : 0
+
+  useFrame((_, dt) => {
+    const g = groupRef.current
+    if (!g) return
+    g.rotation.z = THREE.MathUtils.damp(g.rotation.z, target, 4, dt)
+  })
+
+  // Image trumps text — only build the text canvas when the image slot
+  // is empty, so a face never draws both at once.
+  const outerImageTex = useImageTexture(outerImageUrl)
+  const innerImageTex = useImageTexture(innerImageUrl)
+  const outerTextTex = useTextTexture(outerImageUrl ? null : outerText)
+  const innerTextTex = useTextTexture(innerImageUrl ? null : innerText)
+  const outerTex = outerImageTex ?? outerTextTex
+  const innerTex = innerImageTex ?? innerTextTex
+
+  // Same z-fight-avoidance lift the page sheets and front cover use.
+  const lift = thickness / 2 + 0.0005
+
+  return (
+    <group ref={groupRef} position={[0, hingeY, 0]}>
+      <mesh castShadow receiveShadow position={[width / 2, meshYOffset, 0]}>
+        <boxGeometry args={[width, thickness, height]} />
+        <meshStandardMaterial color="#3a2414" roughness={0.8} />
+      </mesh>
+
+      {/* Inner face — visible from above while the book is open; once the
+          back cover swings up to close, this face presses down onto the
+          topmost flipped page (the symmetric counterpart of the front
+          cover's inner face). */}
+      {innerTex && (
+        <mesh
+          position={[width / 2, meshYOffset + lift, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+        >
+          <planeGeometry args={[width, height]} />
+          <meshBasicMaterial map={innerTex} toneMapped={false} />
+        </mesh>
+      )}
+
+      {/* Outer face — bottom of the back cover while reading; rotates up to
+          become the visible top of the closed book at the end. */}
+      {outerTex && (
+        <mesh
+          position={[width / 2, meshYOffset - lift, 0]}
+          rotation={[Math.PI / 2, 0, Math.PI]}
+        >
+          <planeGeometry args={[width, height]} />
+          <meshBasicMaterial map={outerTex} toneMapped={false} />
         </mesh>
       )}
     </group>
