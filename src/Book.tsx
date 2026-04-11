@@ -68,9 +68,13 @@ export function Book({
   coverThickness = 0.05,
   drawPage = defaultDrawPage,
 }: BookProps) {
-  // currentPage = 0 means the book is closed. currentPage = k means
-  // the front cover and sheets 0..k-1 are flipped onto the left side.
-  const [currentPage, setCurrentPage] = useState(0)
+  // step 0          : book closed.
+  // step 1          : cover open, NO sheets flipped (page 1 on top right).
+  // step k (k >= 2) : cover open, sheets 0..k-2 flipped onto the left side.
+  // The cover gets its own "click stage" so the first interaction only
+  // swings the cover open without dragging sheet 0 along with it.
+  const [step, setStep] = useState(0)
+  const maxStep = pageCount + 1
 
   const totalPagesThickness = pageCount * pageThickness
   const pagesStartY = -totalPagesThickness / 2
@@ -78,13 +82,14 @@ export function Book({
   const turn = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation()
     if (e.nativeEvent.shiftKey) {
-      setCurrentPage((p) => Math.max(p - 1, 0))
+      setStep((p) => Math.max(p - 1, 0))
     } else {
-      setCurrentPage((p) => Math.min(p + 1, pageCount))
+      setStep((p) => Math.min(p + 1, maxStep))
     }
   }
 
-  const coverOpen = currentPage > 0
+  const coverOpen = step > 0
+  const flippedSheets = Math.max(0, step - 1)
   const coverWidth = width + 0.06
   const coverHeight = height + 0.06
 
@@ -148,7 +153,7 @@ export function Book({
             pagesStartY + (pageCount - 1 - i) * pageThickness + pageThickness / 2
           }
           flippedY={pagesStartY + i * pageThickness + pageThickness / 2}
-          flipped={i < currentPage}
+          flipped={i < flippedSheets}
           drawPage={drawPage}
         />
       ))}
