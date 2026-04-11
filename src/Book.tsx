@@ -105,21 +105,15 @@ export function Book({
         <meshStandardMaterial color="#3a2414" roughness={0.8} />
       </mesh>
 
-      {/* Spine */}
-      <mesh
-        castShadow
-        receiveShadow
-        position={[-0.03, pagesStartY + totalPagesThickness / 2, 0]}
-      >
-        <boxGeometry
-          args={[
-            0.06,
-            totalPagesThickness + coverThickness * 2,
-            coverHeight,
-          ]}
-        />
-        <meshStandardMaterial color="#2a1810" roughness={0.9} />
-      </mesh>
+      {/* Spine — shrinks and drops to table level when the book opens. */}
+      <Spine
+        depth={coverHeight}
+        closedHeight={totalPagesThickness + coverThickness * 2}
+        openHeight={coverThickness}
+        closedCenterY={pagesStartY + totalPagesThickness / 2}
+        openCenterY={pagesStartY - coverThickness / 2}
+        open={coverOpen}
+      />
 
       {/* Front cover — flips like a page when the book opens.
           We hinge it around the MIDDLE of the page stack instead of the top
@@ -158,6 +152,49 @@ export function Book({
         />
       ))}
     </group>
+  )
+}
+
+function Spine({
+  depth,
+  closedHeight,
+  openHeight,
+  closedCenterY,
+  openCenterY,
+  open,
+}: {
+  depth: number
+  closedHeight: number
+  openHeight: number
+  closedCenterY: number
+  openCenterY: number
+  open: boolean
+}) {
+  const meshRef = useRef<THREE.Mesh>(null!)
+  const openScale = openHeight / closedHeight
+
+  useFrame((_, dt) => {
+    const m = meshRef.current
+    if (!m) return
+    // Scale Y morphs the box height; position Y keeps the bottom edge
+    // anchored as it shrinks. Both dampen at the cover's rate so they
+    // stay visually in lockstep with the swinging cover.
+    const targetScale = open ? openScale : 1
+    const targetY = open ? openCenterY : closedCenterY
+    m.scale.y = THREE.MathUtils.damp(m.scale.y, targetScale, 4, dt)
+    m.position.y = THREE.MathUtils.damp(m.position.y, targetY, 4, dt)
+  })
+
+  return (
+    <mesh
+      ref={meshRef}
+      castShadow
+      receiveShadow
+      position={[-0.03, closedCenterY, 0]}
+    >
+      <boxGeometry args={[0.06, closedHeight, depth]} />
+      <meshStandardMaterial color="#2a1810" roughness={0.9} />
+    </mesh>
   )
 }
 
