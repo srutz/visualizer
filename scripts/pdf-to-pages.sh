@@ -47,9 +47,10 @@ mkdir -p "$out_dir"
 echo "rendering '$pdf' → $out_dir (dpi=$dpi)"
 
 if command -v pdftocairo >/dev/null 2>&1; then
-  # pdftocairo writes files as <prefix>-<page>.png with zero-padding that
-  # matches the total page count. We pass the prefix as "page" so the
-  # filenames come out as page-001.png, page-002.png, ...
+  # pdftocairo writes files as <prefix>-<page>.png with padding that
+  # matches the total page count — so a 3-page PDF yields page-1.png
+  # instead of page-001.png. Normalize to 3-digit padding below so the
+  # consumer can always glob with a predictable pattern.
   pdftocairo -png -r "$dpi" "$pdf" "$out_dir/page"
 elif command -v mutool >/dev/null 2>&1; then
   # mutool convert uses a printf-style pattern; %03d gives 3-digit padding.
@@ -59,6 +60,20 @@ else
   echo "error: need pdftocairo (poppler-utils) or mutool (mupdf-tools) installed" >&2
   exit 1
 fi
+
+# Re-pad every page-*.png to 3 digits. Safe to run unconditionally —
+# files already at page-001.png are skipped because old == new.
+for f in "$out_dir"/page-*.png; do
+  [[ -f "$f" ]] || continue
+  base=$(basename "$f" .png)
+  num=${base#page-}
+  # Strip any leading zeros so printf doesn't interpret the number as octal.
+  num=$((10#$num))
+  new=$(printf "page-%03d.png" "$num")
+  if [[ "$base.png" != "$new" ]]; then
+    mv "$f" "$out_dir/$new"
+  fi
+done
 
 page_count=$(find "$out_dir" -maxdepth 1 -name 'page-*.png' | wc -l)
 echo "done: $page_count pages → public/$name/"
