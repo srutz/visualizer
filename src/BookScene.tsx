@@ -2,48 +2,63 @@
 
 import { Center, ContactShadows, OrbitControls } from '@react-three/drei'
 import { Canvas } from '@react-three/fiber'
-import { useEffect, useState } from 'react'
-import { FaFilePdf, FaGithub } from 'react-icons/fa6'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { FaArrowLeft, FaArrowRight, FaFilePdf, FaGithub, FaUpload } from 'react-icons/fa6'
 import { Book } from './Book'
+// Type-only import — erased at compile time, so pulling pdfjs-dist in
+// through pdfLoader stays a runtime-only cost paid lazily below.
+import type { LoadedPdf } from './pdfLoader'
 
-// Point these at whatever you rendered with scripts/pdf-to-pages.sh.
-// BOOK_DIR is the subfolder name you passed to the script (it lives under
-// public/), and BOOK_PAGE_COUNT is the total number of pages in the PDF.
-// A book has two pages per sheet, so the number of physical sheets is
-// ceil(BOOK_PAGE_COUNT / 2). Any missing image falls back to a rendered
-// page number, so you can safely tweak these before the files exist.
-const BOOK_DIR = 'cv_stepanrutz'
-const BOOK_PAGE_COUNT = 4
-// Optional original PDF. When set, Ctrl/⌘-clicking a page opens an
-// HTML overlay with the browser's native PDF viewer at that page —
-// perfect-quality vectors, no PNG rasterization. Set to null to
-// disable the overlay feature.
-const BOOK_PDF_URL: string | null = `${import.meta.env.BASE_URL}${BOOK_DIR}/${BOOK_DIR}.pdf`
-
-const pageImages = Array.from(
-  { length: BOOK_PAGE_COUNT },
-  (_, i) => `${import.meta.env.BASE_URL}${BOOK_DIR}/page-${String(i + 1).padStart(3, '0')}.png`,
+// Default book that ships with the site. BOOK_DIR is the subfolder name
+// you passed to scripts/pdf-to-pages.sh (under public/), and
+// DEFAULT_BOOK_PAGE_COUNT is the total number of pages in that PDF.
+// A sheet is two pages, so physicalSheets = ceil(pages / 2). Any missing
+// image slot falls back to a rendered page number, so you can safely
+// tweak these before the files exist.
+const DEFAULT_BOOK_DIR = 'cv_stepanrutz'
+const DEFAULT_BOOK_PAGE_COUNT = 4
+const DEFAULT_BOOK_PDF_URL = `${import.meta.env.BASE_URL}${DEFAULT_BOOK_DIR}/${DEFAULT_BOOK_DIR}.pdf`
+const defaultPageImages = Array.from(
+  { length: DEFAULT_BOOK_PAGE_COUNT },
+  (_, i) => `${import.meta.env.BASE_URL}${DEFAULT_BOOK_DIR}/page-${String(i + 1).padStart(3, '0')}.png`,
 )
-const sheetCount = Math.ceil(BOOK_PAGE_COUNT / 2)
+
+// Keep the browser-side PDF loader honest — rasterizing every page to
+// a PNG at 1024px eats memory fast, and a CV or a pitch deck almost
+// never needs more than this anyway.
+const MAX_USER_PDF_PAGES = 48
 
 function SceneContent({
+  pageCount,
+  pageImages,
+  frontCoverText,
+  backCoverInnerText,
   onPageOpen,
 }: {
+  pageCount: number
+  pageImages: (string | null | undefined)[]
+  frontCoverText: string
+  backCoverInnerText: string | null
   onPageOpen?: (pageNumber: number) => void
 }) {
   const shadows = true
+  const sheetCount = Math.max(1, Math.ceil(pageCount / 2))
   return (
     <>
       <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} decay={0} intensity={Math.PI} />
       <group position={[0, -0.25, 0]}>
         <Center top position={[1, 0.3, 0]} >
           <Book
+            // Rebuild the Book outright when the source PDF changes,
+            // so sheet textures don't hold onto revoked blob URLs from
+            // the previous document.
+            key={`${pageCount}:${pageImages[0] ?? ''}`}
             pageCount={sheetCount}
             pageImages={pageImages}
             onPageOpen={onPageOpen}
             rotation={[0.0, 0, 0]}
-            frontCoverOuterText='Stepan Rutz'
-            backCoverInnerText='stepan.rutz@stepanrutz.com'
+            frontCoverOuterText={frontCoverText}
+            backCoverInnerText={backCoverInnerText ?? undefined}
           />
         </Center>
         {shadows && (
@@ -126,10 +141,40 @@ function PdfOverlay({
   )
 }
 
-function PdfDownloadButton({ url }: { url: string }) {
-  // Pull a sensible filename out of the URL — falls back to "document.pdf"
-  // if the path is weird (query strings, no slashes, etc.).
-  const filename = url.split('/').pop()?.split('?')[0] || 'document.pdf'
+// Top-center overlay with prev/next page buttons. We dispatch the same
+// PageUp/PageDown KeyboardEvents the Book component already listens for,
+// so the buttons stay decoupled from the Book's internal step state.
+function PageNavButtons() {
+  const flip = (key: 'PageUp' | 'PageDown') => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
+  }
+  return (
+    <div className="fixed top-2 left-1/2 -translate-x-1/2 z-40 flex gap-2">
+      <button
+        type="button"
+        onClick={() => flip('PageUp')}
+        title="Previous page"
+        aria-label="Previous page"
+        className="px-[64px] py-2 bg-black/60 text-white text-xs sm:text-sm backdrop-blur-sm shadow flex gap-2 items-center"
+      >
+        <FaArrowLeft className="w-5 h-5" />
+        Back
+      </button>
+      <button
+        type="button"
+        onClick={() => flip('PageDown')}
+        title="Next page"
+        aria-label="Next page"
+        className="px-[64px] py-2 bg-black/60 text-white text-xs sm:text-sm backdrop-blur-sm shadow flex gap-2 items-center"
+      >
+        Forward
+        <FaArrowRight className="w-5 h-5" />
+      </button>
+    </div>
+  )
+}
+
+function PdfDownloadButton({ url, filename }: { url: string; filename: string }) {
   return (
     <a
       href={url}
@@ -145,7 +190,8 @@ function PdfDownloadButton({ url }: { url: string }) {
   )
 }
 
-function Header() {
+function Header({ onPickFile }: { onPickFile: (file: File) => void }) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
   return (
     <div className="fixed top-2 left-2 z-40 ">
       <div className="px-[64px] py-2 bg-black/60 text-white text-xs sm:text-sm backdrop-blur-sm shadow flex flex-col gap-2 items-center">
@@ -153,6 +199,25 @@ function Header() {
           Free PDF Visualizer by <a href="https://www.stepanrutz.com" target="_blank" rel="noopener noreferrer" className="underline">Stepan Rutz</a>
         </div>
         <a href="https://github.com/srutz/visualizer" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 underline"><FaGithub className="w-5 h-5" /> Sourceode </a>
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="flex items-center gap-2 underline"
+        >
+          <FaUpload className="w-4 h-4" /> Load your own PDF
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/pdf,.pdf"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) onPickFile(file)
+            // Reset so picking the same file twice still fires change.
+            e.target.value = ''
+          }}
+        />
       </div>
     </div>
   )
@@ -171,13 +236,175 @@ function SceneHint() {
         <span>Shift+Click/PageUp to flip back</span>
         <span className="mx-3">·</span>
         <span>{modKey}+Click to open PDF-Page</span>
+        <span className="mx-3">·</span>
+        <span>Drop a PDF to load it</span>
       </div>
+    </div>
+  )
+}
+
+function DropOverlay() {
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm pointer-events-none">
+      <div className="px-10 py-8 rounded-2xl border-4 border-dashed border-white/80 text-white text-xl font-semibold flex flex-col items-center gap-3">
+        <FaFilePdf className="w-10 h-10" />
+        Drop your PDF to load it (max {MAX_USER_PDF_PAGES} pages)
+      </div>
+    </div>
+  )
+}
+
+function LoadingOverlay({ current, total }: { current: number; total: number }) {
+  const pct = total > 0 ? Math.round((current / total) * 100) : 0
+  return (
+    <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="px-8 py-6 rounded-xl bg-zinc-900 text-white shadow-2xl flex flex-col gap-3 min-w-[280px]">
+        <div className="text-sm">
+          {total === 0
+            ? 'Opening PDF…'
+            : `Rendering page ${current} of ${total}…`}
+        </div>
+        <div className="h-2 w-full bg-zinc-700 rounded overflow-hidden">
+          <div
+            className="h-full bg-white transition-[width] duration-150"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ErrorToast({
+  message,
+  onDismiss,
+}: {
+  message: string
+  onDismiss: () => void
+}) {
+  useEffect(() => {
+    const id = window.setTimeout(onDismiss, 6000)
+    return () => window.clearTimeout(id)
+  }, [onDismiss])
+  return (
+    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[70] px-4 py-2 rounded-lg bg-red-700 text-white text-sm shadow-lg">
+      {message}
+      <button
+        type="button"
+        onClick={onDismiss}
+        className="ml-3 underline"
+      >
+        dismiss
+      </button>
     </div>
   )
 }
 
 export function BookScene() {
   const [overlayPage, setOverlayPage] = useState<number | null>(null)
+  const [customBook, setCustomBook] = useState<LoadedPdf | null>(null)
+  const [loading, setLoading] = useState<{ current: number; total: number } | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [dragging, setDragging] = useState(false)
+
+  // Revoke the custom book's blob URLs when it's replaced or the
+  // component unmounts. Tied to customBook identity so a new upload
+  // cleans up the previous one automatically. We dynamic-import
+  // pdfLoader so casual visitors who never upload a PDF don't pay
+  // the pdfjs-dist bundle cost.
+  useEffect(() => {
+    if (!customBook) return
+    return () => {
+      import('./pdfLoader').then(({ revokeLoadedPdf }) => revokeLoadedPdf(customBook))
+    }
+  }, [customBook])
+
+  const pageCount = customBook?.pageCount ?? DEFAULT_BOOK_PAGE_COUNT
+  const pageImages = customBook?.pageImages ?? defaultPageImages
+  const pdfUrl = customBook?.pdfUrl ?? DEFAULT_BOOK_PDF_URL
+  const pdfFilename = customBook
+    ? `${customBook.name}.pdf`
+    : `${DEFAULT_BOOK_DIR}.pdf`
+  const frontCoverText = customBook ? customBook.name : 'Stepan Rutz'
+  const backCoverInnerText = customBook ? null : 'stepan.rutz@stepanrutz.com'
+
+  const handleFile = useCallback(async (file: File) => {
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      setError('Please choose a PDF file.')
+      return
+    }
+    setError(null)
+    setLoading({ current: 0, total: 0 })
+    try {
+      // Lazy-load pdfjs-dist — it's a ~1 MB dep we'd rather not ship
+      // to visitors who only ever read the default book.
+      const { loadPdfAsBook } = await import('./pdfLoader')
+      const loaded = await loadPdfAsBook(file, MAX_USER_PDF_PAGES, (cur, total) => {
+        setLoading({ current: cur, total })
+      })
+      // setCustomBook's cleanup effect will revoke the previous one for us.
+      setCustomBook(loaded)
+      if (loaded.truncated) {
+        setError(
+          `Only the first ${loaded.pageCount} of ${loaded.totalPages} pages were rendered.`,
+        )
+      }
+      // If the overlay was showing a page from the previous PDF, close it.
+      setOverlayPage(null)
+    } catch (err) {
+      console.error('Failed to load PDF', err)
+      setError(err instanceof Error ? err.message : 'Failed to load PDF.')
+    } finally {
+      setLoading(null)
+    }
+  }, [])
+
+  // Full-window drag-and-drop. We listen on window rather than a
+  // wrapper div so the Three.js canvas (which captures pointer events
+  // for OrbitControls) doesn't steal the drop target.
+  useEffect(() => {
+    // Track enter/leave depth: dragenter fires for every child element
+    // the cursor crosses, and a naive boolean flickers. Counting keeps
+    // the overlay stable until the drag really leaves the window.
+    let depth = 0
+    const hasFiles = (e: DragEvent) =>
+      !!e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')
+
+    const onEnter = (e: DragEvent) => {
+      if (!hasFiles(e)) return
+      depth++
+      setDragging(true)
+    }
+    const onOver = (e: DragEvent) => {
+      if (!hasFiles(e)) return
+      // preventDefault is what actually enables the drop.
+      e.preventDefault()
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
+    }
+    const onLeave = (e: DragEvent) => {
+      if (!hasFiles(e)) return
+      depth = Math.max(0, depth - 1)
+      if (depth === 0) setDragging(false)
+    }
+    const onDrop = (e: DragEvent) => {
+      if (!hasFiles(e)) return
+      e.preventDefault()
+      depth = 0
+      setDragging(false)
+      const file = e.dataTransfer?.files?.[0]
+      if (file) handleFile(file)
+    }
+    window.addEventListener('dragenter', onEnter)
+    window.addEventListener('dragover', onOver)
+    window.addEventListener('dragleave', onLeave)
+    window.addEventListener('drop', onDrop)
+    return () => {
+      window.removeEventListener('dragenter', onEnter)
+      window.removeEventListener('dragover', onOver)
+      window.removeEventListener('dragleave', onLeave)
+      window.removeEventListener('drop', onDrop)
+    }
+  }, [handleFile])
 
   return (
     <>
@@ -189,17 +416,25 @@ export function BookScene() {
         onContextMenu={(e) => e.preventDefault()}
       >
         <SceneContent
+          pageCount={pageCount}
+          pageImages={pageImages}
+          frontCoverText={frontCoverText}
+          backCoverInnerText={backCoverInnerText}
           onPageOpen={
-            BOOK_PDF_URL ? (pageNumber) => setOverlayPage(pageNumber) : undefined
+            pdfUrl ? (pageNumber) => setOverlayPage(pageNumber) : undefined
           }
         />
       </Canvas>
-      <Header />
-      {BOOK_PDF_URL && <PdfDownloadButton url={BOOK_PDF_URL} />}
+      <Header onPickFile={handleFile} />
+      <PageNavButtons />
+      {pdfUrl && <PdfDownloadButton url={pdfUrl} filename={pdfFilename} />}
       <SceneHint />
-      {BOOK_PDF_URL && overlayPage !== null && (
+      {dragging && <DropOverlay />}
+      {loading && <LoadingOverlay current={loading.current} total={loading.total} />}
+      {error && <ErrorToast message={error} onDismiss={() => setError(null)} />}
+      {pdfUrl && overlayPage !== null && (
         <PdfOverlay
-          url={BOOK_PDF_URL}
+          url={pdfUrl}
           page={overlayPage}
           onClose={() => setOverlayPage(null)}
         />
