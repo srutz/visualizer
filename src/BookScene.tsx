@@ -42,6 +42,8 @@ function SceneContent({
             pageImages={pageImages}
             onPageOpen={onPageOpen}
             rotation={[0.0, 0, 0]}
+            frontCoverOuterText='Stepan Rutz'
+            backCoverInnerText='stepan.rutz@stepanrutz.com'
           />
         </Center>
         {shadows && (

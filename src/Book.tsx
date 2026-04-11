@@ -127,7 +127,7 @@ function useTextTexture(text: string | null | undefined) {
     let fontSize = Math.floor(w * 0.14)
     let lines: string[] = []
     while (fontSize > 12) {
-      ctx.font = `600 ${fontSize}px Georgia, serif`
+      ctx.font = `600 ${fontSize}px sans, Georgia, serif`
       lines = []
       let current = ''
       for (const word of words) {
