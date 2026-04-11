@@ -22,6 +22,7 @@ export type DrawPage = (
   pageNumber: number,
   width: number,
   height: number,
+  debug?: boolean,
 ) => void
 
 type BookProps = {
@@ -31,29 +32,39 @@ type BookProps = {
   pageThickness?: number
   coverThickness?: number
   drawPage?: DrawPage
+  debug?: boolean
   // Optional image URLs, indexed by 1-based page number minus 1
   // (i.e. pageImages[0] is the image for page 1). Any slot left empty,
   // null, or undefined falls back to drawPage for that page.
   pageImages?: (string | null | undefined)[]
+  // Fires when a page face is double-clicked. The page number is
+  // 1-based. Single clicks still flip the book, but they are delayed
+  // briefly so a double-click cancels the flip and dispatches this
+  // callback instead.
+  onPageDoubleClick?: (pageNumber: number) => void
+
 }
 
-const defaultDrawPage: DrawPage = (ctx, pageNumber, w, h) => {
+const defaultDrawPage: DrawPage = (ctx, pageNumber, w, h, debug) => {
   ctx.fillStyle = '#ffffff'
   ctx.fillRect(0, 0, w, h)
-  ctx.fillStyle = '#2a2014'
-  ctx.font = `${Math.floor(w * 0.7)}px Georgia, serif`
-  ctx.textAlign = 'center'
-  ctx.textBaseline = 'middle'
-  ctx.fillText(String(pageNumber), w / 2, h / 2)
+
+  if (debug) {
+    ctx.fillStyle = '#2a2014'
+    ctx.font = `${Math.floor(w * 0.7)}px Georgia, serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(String(pageNumber), w / 2, h / 2)
+  }
 }
 
-function usePageTexture(pageNumber: number, draw: DrawPage) {
+function usePageTexture(pageNumber: number, draw: DrawPage, debug) {
   const texture = useMemo(() => {
     const canvas = document.createElement('canvas')
     canvas.width = TEXTURE_PX_WIDTH
     canvas.height = Math.round(TEXTURE_PX_WIDTH * PAGE_ASPECT)
     const ctx = canvas.getContext('2d')!
-    draw(ctx, pageNumber, canvas.width, canvas.height)
+    draw(ctx, pageNumber, canvas.width, canvas.height, debug)
     const tex = new THREE.CanvasTexture(canvas)
     tex.colorSpace = THREE.SRGBColorSpace
     tex.anisotropy = 4
@@ -114,6 +125,8 @@ export function Book({
   coverThickness = 0.05,
   drawPage = defaultDrawPage,
   pageImages,
+  onPageDoubleClick,
+  debug = false,
 }: BookProps) {
   // step 0          : book closed.
   // step 1          : cover open, NO sheets flipped (page 1 on top right).
@@ -126,14 +139,44 @@ export function Book({
   const totalPagesThickness = pageCount * pageThickness
   const pagesStartY = -totalPagesThickness / 2
 
+  // Hold single-click page-flips just long enough that a double-click
+  // on a page face can cancel them — otherwise a dbl-click would flip
+  // the book twice AND open the overlay. The 220ms window is enough
+  // to catch a typical dblclick (which fires right after click #2)
+  // without making single clicks feel sluggish.
+  const pendingTurnRef = useRef<number | null>(null)
+
   const turn = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation()
-    if (e.nativeEvent.shiftKey) {
-      setStep((p) => Math.max(p - 1, 0))
-    } else {
-      setStep((p) => Math.min(p + 1, maxStep))
+    const shift = e.nativeEvent.shiftKey
+    if (pendingTurnRef.current != null) {
+      window.clearTimeout(pendingTurnRef.current)
     }
+    pendingTurnRef.current = window.setTimeout(() => {
+      pendingTurnRef.current = null
+      if (shift) {
+        setStep((p) => Math.max(p - 1, 0))
+      } else {
+        setStep((p) => Math.min(p + 1, maxStep))
+      }
+    }, 220)
   }
+
+  const handleFaceDoubleClick = (pageNumber: number) => {
+    if (pendingTurnRef.current != null) {
+      window.clearTimeout(pendingTurnRef.current)
+      pendingTurnRef.current = null
+    }
+    onPageDoubleClick?.(pageNumber)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (pendingTurnRef.current != null) {
+        window.clearTimeout(pendingTurnRef.current)
+      }
+    }
+  }, [])
 
   const coverOpen = step > 0
   const flippedSheets = Math.max(0, step - 1)
@@ -201,6 +244,9 @@ export function Book({
             drawPage={drawPage}
             frontImageUrl={pageImages?.[frontPage - 1] ?? null}
             backImageUrl={pageImages?.[backPage - 1] ?? null}
+            onFaceDoubleClick={
+              onPageDoubleClick ? handleFaceDoubleClick : undefined
+            }
           />
         )
       })}
@@ -296,6 +342,7 @@ function Sheet({
   drawPage,
   frontImageUrl,
   backImageUrl,
+  onFaceDoubleClick,
 }: {
   index: number
   width: number
@@ -307,6 +354,7 @@ function Sheet({
   drawPage: DrawPage
   frontImageUrl: string | null | undefined
   backImageUrl: string | null | undefined
+  onFaceDoubleClick?: (pageNumber: number) => void
 }) {
   const groupRef = useRef<THREE.Group>(null!)
   const target = flipped ? Math.PI : 0
@@ -323,13 +371,13 @@ function Sheet({
 
   const frontPage = index * 2 + 1
   const backPage = index * 2 + 2
-  const frontFallback = usePageTexture(frontPage, drawPage)
-  const backFallback = usePageTexture(backPage, drawPage)
+  const frontFallback = usePageTexture(frontPage, drawPage, false)
+  const backFallback = usePageTexture(backPage, drawPage, false)
   const frontImage = useImageTexture(frontImageUrl)
   const backImage = useImageTexture(backImageUrl)
   const frontTexture = frontImage ?? frontFallback
   const backTexture = backImage ?? backFallback
-  console.log('render sheet', index, { frontImageUrl, backImageUrl, frontTexture, backTexture })
+  //console.log('render sheet', index, { frontImageUrl, backImageUrl, frontTexture, backTexture })
 
   // Lift the page art a hair off the paper mesh so it doesn't z-fight.
   const lift = thickness / 2 + 0.0005
@@ -345,6 +393,14 @@ function Sheet({
       <mesh
         position={[width / 2, lift, 0]}
         rotation={[-Math.PI / 2, 0, 0]}
+        onDoubleClick={
+          onFaceDoubleClick
+            ? (e) => {
+              e.stopPropagation()
+              onFaceDoubleClick(frontPage)
+            }
+            : undefined
+        }
       >
         <planeGeometry args={[width, height]} />
         <meshBasicMaterial map={frontTexture} toneMapped={false} />
@@ -355,6 +411,14 @@ function Sheet({
       <mesh
         position={[width / 2, -lift, 0]}
         rotation={[Math.PI / 2, 0, Math.PI]}
+        onDoubleClick={
+          onFaceDoubleClick
+            ? (e) => {
+              e.stopPropagation()
+              onFaceDoubleClick(backPage)
+            }
+            : undefined
+        }
       >
         <planeGeometry args={[width, height]} />
         <meshBasicMaterial map={backTexture} toneMapped={false} />
