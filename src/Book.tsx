@@ -37,6 +37,24 @@ type BookProps = {
   // (i.e. pageImages[0] is the image for page 1). Any slot left empty,
   // null, or undefined falls back to drawPage for that page.
   pageImages?: (string | null | undefined)[]
+  // Optional artwork for the four "special" faces of the covers. Any
+  // omitted slot leaves the bare leather showing through.
+  //   frontCoverOuterImage — top of the front cover when the book is closed
+  //   frontCoverInnerImage — visible under the first page once the book opens
+  //   backCoverInnerImage  — visible under the last page once the book opens
+  //   backCoverOuterImage  — bottom face of the back cover (seen from below)
+  frontCoverOuterImage?: string | null
+  frontCoverInnerImage?: string | null
+  backCoverInnerImage?: string | null
+  backCoverOuterImage?: string | null
+  // Optional text fallbacks for the same four faces. A text is only used
+  // if the matching image prop above is missing — pass an image OR a text,
+  // not both. Useful for stamping a title on the leather without producing
+  // any artwork.
+  frontCoverOuterText?: string | null
+  frontCoverInnerText?: string | null
+  backCoverInnerText?: string | null
+  backCoverOuterText?: string | null
   // Fires when a page face is Ctrl/⌘-clicked. The page number is
   // 1-based. Plain clicks still flip the book; the modifier splits
   // the two gestures cleanly with no timing hack.
@@ -73,6 +91,76 @@ function usePageTexture(pageNumber: number, draw: DrawPage, debug) {
     return tex
   }, [pageNumber, draw, debug])
   useEffect(() => () => texture.dispose(), [texture])
+  return texture
+}
+
+// Renders a short string into a CanvasTexture so it can be slapped onto a
+// cover face as a fallback when no image is provided. Word-wraps and shrinks
+// the font to fit; uses cream-on-leather colors so it reads as a stamped
+// title against the brown box behind it.
+function useTextTexture(text: string | null | undefined) {
+  const texture = useMemo(() => {
+    if (!text) return null
+    const w = TEXTURE_PX_WIDTH
+    const h = Math.round(TEXTURE_PX_WIDTH * PAGE_ASPECT)
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d')!
+
+    // Leather-colored background so the texture blends with the cover box
+    // even at the very edges where the lift might let pixels peek through.
+    ctx.fillStyle = '#3a2414'
+    ctx.fillRect(0, 0, w, h)
+
+    // Word-wrap: try a generous font size first, shrink until every line
+    // fits inside the safe area. Beats clipping when the user passes a
+    // longer title.
+    const margin = w * 0.12
+    const maxWidth = w - margin * 2
+    const maxHeight = h - margin * 2
+    ctx.fillStyle = '#f1e3c6'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+
+    const words = text.split(/\s+/).filter(Boolean)
+    let fontSize = Math.floor(w * 0.14)
+    let lines: string[] = []
+    while (fontSize > 12) {
+      ctx.font = `600 ${fontSize}px Georgia, serif`
+      lines = []
+      let current = ''
+      for (const word of words) {
+        const trial = current ? `${current} ${word}` : word
+        if (ctx.measureText(trial).width <= maxWidth) {
+          current = trial
+        } else {
+          if (current) lines.push(current)
+          current = word
+        }
+      }
+      if (current) lines.push(current)
+      const lineHeight = fontSize * 1.25
+      const totalHeight = lineHeight * lines.length
+      const widest = Math.max(...lines.map((l) => ctx.measureText(l).width))
+      if (totalHeight <= maxHeight && widest <= maxWidth) break
+      fontSize -= 4
+    }
+
+    const lineHeight = fontSize * 1.25
+    const totalHeight = lineHeight * lines.length
+    const startY = h / 2 - totalHeight / 2 + lineHeight / 2
+    lines.forEach((line, i) => {
+      ctx.fillText(line, w / 2, startY + i * lineHeight)
+    })
+
+    const tex = new THREE.CanvasTexture(canvas)
+    tex.colorSpace = THREE.SRGBColorSpace
+    tex.anisotropy = 4
+    tex.needsUpdate = true
+    return tex
+  }, [text])
+  useEffect(() => () => texture?.dispose(), [texture])
   return texture
 }
 
@@ -126,6 +214,14 @@ export function Book({
   coverThickness = 0.05,
   drawPage = defaultDrawPage,
   pageImages,
+  frontCoverOuterImage,
+  frontCoverInnerImage,
+  backCoverInnerImage,
+  backCoverOuterImage,
+  frontCoverOuterText,
+  frontCoverInnerText,
+  backCoverInnerText,
+  backCoverOuterText,
   onPageOpen,
   rotation = [0, 0, 0],
   debug = false,
@@ -189,6 +285,23 @@ export function Book({
   const coverWidth = width + 0.06
   const coverHeight = height + 0.06
 
+  // Lift cover artwork a hair off the box surface, same trick the page
+  // sheets use to avoid z-fighting between the leather and the texture.
+  const coverLift = coverThickness / 2 + 0.0005
+
+  // Image wins over text on every face — only render the text canvas
+  // when the corresponding image prop is empty, so the two never stack.
+  const backCoverInnerImageTex = useImageTexture(backCoverInnerImage)
+  const backCoverOuterImageTex = useImageTexture(backCoverOuterImage)
+  const backCoverInnerTextTex = useTextTexture(
+    backCoverInnerImage ? null : backCoverInnerText,
+  )
+  const backCoverOuterTextTex = useTextTexture(
+    backCoverOuterImage ? null : backCoverOuterText,
+  )
+  const backCoverInnerTex = backCoverInnerImageTex ?? backCoverInnerTextTex
+  const backCoverOuterTex = backCoverOuterImageTex ?? backCoverOuterTextTex
+
   return (
     <group rotation={rotation} onClick={turn} onContextMenu={turnBack}>
       {/* Back cover: sits below all pages, never animates */}
@@ -200,6 +313,28 @@ export function Book({
         <boxGeometry args={[coverWidth, coverThickness, coverHeight]} />
         <meshStandardMaterial color="#3a2414" roughness={0.8} />
       </mesh>
+
+      {/* Back cover INSIDE — visible from above once the book is open. */}
+      {backCoverInnerTex && (
+        <mesh
+          position={[width / 2, pagesStartY - coverThickness / 2 + coverLift, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+        >
+          <planeGeometry args={[coverWidth, coverHeight]} />
+          <meshBasicMaterial map={backCoverInnerTex} toneMapped={false} />
+        </mesh>
+      )}
+
+      {/* Back cover OUTSIDE — visible from below the book. */}
+      {backCoverOuterTex && (
+        <mesh
+          position={[width / 2, pagesStartY - coverThickness / 2 - coverLift, 0]}
+          rotation={[Math.PI / 2, 0, Math.PI]}
+        >
+          <planeGeometry args={[coverWidth, coverHeight]} />
+          <meshBasicMaterial map={backCoverOuterTex} toneMapped={false} />
+        </mesh>
+      )}
 
       {/* Spine — shrinks and drops to table level when the book opens. */}
       <Spine
@@ -223,6 +358,10 @@ export function Book({
         hingeY={pagesStartY + totalPagesThickness / 2}
         meshYOffset={totalPagesThickness / 2 + coverThickness / 2}
         open={coverOpen}
+        outerImageUrl={frontCoverOuterImage}
+        innerImageUrl={frontCoverInnerImage}
+        outerText={frontCoverOuterText}
+        innerText={frontCoverInnerText}
       />
 
       {/* Paper sheets.
@@ -309,6 +448,10 @@ function Cover({
   hingeY,
   meshYOffset,
   open,
+  outerImageUrl,
+  innerImageUrl,
+  outerText,
+  innerText,
 }: {
   width: number
   height: number
@@ -316,6 +459,10 @@ function Cover({
   hingeY: number
   meshYOffset: number
   open: boolean
+  outerImageUrl?: string | null
+  innerImageUrl?: string | null
+  outerText?: string | null
+  innerText?: string | null
 }) {
   const groupRef = useRef<THREE.Group>(null!)
   const target = open ? Math.PI : 0
@@ -326,12 +473,51 @@ function Cover({
     g.rotation.z = THREE.MathUtils.damp(g.rotation.z, target, 4, dt)
   })
 
+  // Image trumps text — only build the text canvas when the image slot
+  // is empty, so a face never draws both at once.
+  const outerImageTex = useImageTexture(outerImageUrl)
+  const innerImageTex = useImageTexture(innerImageUrl)
+  const outerTextTex = useTextTexture(outerImageUrl ? null : outerText)
+  const innerTextTex = useTextTexture(innerImageUrl ? null : innerText)
+  const outerTex = outerImageTex ?? outerTextTex
+  const innerTex = innerImageTex ?? innerTextTex
+
+  // Same z-fight-avoidance lift the page sheets use.
+  const lift = thickness / 2 + 0.0005
+
   return (
     <group ref={groupRef} position={[0, hingeY, 0]}>
       <mesh castShadow receiveShadow position={[width / 2, meshYOffset, 0]}>
         <boxGeometry args={[width, thickness, height]} />
         <meshStandardMaterial color="#3a2414" roughness={0.8} />
       </mesh>
+
+      {/* Outer face — top of the front cover when the book is closed. After
+          the cover swings open it ends up on the underside, hidden against
+          the table, which is exactly what a real book does. */}
+      {outerTex && (
+        <mesh
+          position={[width / 2, meshYOffset + lift, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+        >
+          <planeGeometry args={[width, height]} />
+          <meshBasicMaterial map={outerTex} toneMapped={false} />
+        </mesh>
+      )}
+
+      {/* Inner face — pressed against the first page when closed; comes
+          into view (right-side up) once the cover has flipped 180°. The
+          extra Z rotation pre-flips the texture so it reads correctly
+          after the parent group's rotation. */}
+      {innerTex && (
+        <mesh
+          position={[width / 2, meshYOffset - lift, 0]}
+          rotation={[Math.PI / 2, 0, Math.PI]}
+        >
+          <planeGeometry args={[width, height]} />
+          <meshBasicMaterial map={innerTex} toneMapped={false} />
+        </mesh>
+      )}
     </group>
   )
 }
