@@ -324,6 +324,7 @@ export function Book({
         closedCenterY={pagesStartY + totalPagesThickness / 2}
         openCenterY={pagesStartY - coverThickness / 2}
         open={coverOpen}
+        flipped={backCoverClosed}
         color={darkenColor(coverColor, 0.7)}
       />
 
@@ -387,6 +388,7 @@ function Spine({
   closedCenterY,
   openCenterY,
   open,
+  flipped,
   color = '#2a1810',
 }: {
   depth: number
@@ -395,6 +397,7 @@ function Spine({
   closedCenterY: number
   openCenterY: number
   open: boolean
+  flipped: boolean
   color?: string
 }) {
   const meshRef = useRef<THREE.Mesh>(null!)
@@ -403,13 +406,17 @@ function Spine({
   useFrame((_, dt) => {
     const m = meshRef.current
     if (!m) return
-    // Scale Y morphs the box height; position Y keeps the bottom edge
-    // anchored as it shrinks. Both dampen at the cover's rate so they
-    // stay visually in lockstep with the swinging cover.
-    const targetScale = open ? openScale : 1
-    const targetY = open ? openCenterY : closedCenterY
+    const closed = !open || flipped
+    const targetScale = closed ? 1 : openScale
+    const targetY = closed ? closedCenterY : openCenterY
+    const targetOpacity = closed ? 1 : 0
+    const targetX = flipped ? 0.03 : -0.03
     m.scale.y = THREE.MathUtils.damp(m.scale.y, targetScale, 4, dt)
     m.position.y = THREE.MathUtils.damp(m.position.y, targetY, 4, dt)
+    m.position.x = THREE.MathUtils.damp(m.position.x, targetX, 4, dt)
+    const mat = m.material as THREE.MeshStandardMaterial
+    mat.opacity = THREE.MathUtils.damp(mat.opacity, targetOpacity, 4, dt)
+    m.visible = mat.opacity > 0.01
   })
 
   return (
@@ -420,7 +427,7 @@ function Spine({
       position={[-0.03, closedCenterY, 0]}
     >
       <boxGeometry args={[0.06, closedHeight, depth]} />
-      <meshStandardMaterial color={color} roughness={0.9} />
+      <meshStandardMaterial color={color} roughness={0.9} transparent />
     </mesh>
   )
 }
