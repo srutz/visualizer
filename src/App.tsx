@@ -113,9 +113,9 @@ export function App() {
               size="sm"
               type="number"
               min={1}
-              max={200}
+              max={300}
               value={maxPages}
-              onChange={(e) => setMaxPages(Math.max(1, Math.min(200, parseInt(e.target.value, 10) || 48)))}
+              onChange={(e) => setMaxPages(Math.max(1, Math.min(300, parseInt(e.target.value, 10) || 48)))}
               data-bs-theme="dark"
             />
           </Form.Group>

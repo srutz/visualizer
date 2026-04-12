@@ -22,9 +22,18 @@ them the browser blocks the request and the app shows a "Failed to
 fetch" error. Same-origin URLs (anything served from the visualizer's
 own domain) always work. And as a small tip, you don't want to allow ```*``` CORS on a real PDF-serving endpoint.
 
+## Query parameters
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `pdf` | URL of a PDF to load (requires CORS) | — |
+| `proxypdf` | URL of a PDF to load via the CORS proxy | — |
+| `name` | Title shown on the front cover | filename derived from URL |
+| `maxpages` / `maxPages` | Maximum number of pages to render (1–300) | 48 |
+
 ## Example PDFs
 
-[Pro Git book](https://srutz.github.io/visualizer/?proxypdf=https://github.com/progit/progit2/releases/download/2.1.449/progit.pdf&name=Pro%20Git)
+[Pro Git book (100 pages)](https://srutz.github.io/visualizer/?proxypdf=https://github.com/progit/progit2/releases/download/2.1.449/progit.pdf&name=Pro%20Git&maxpages=100)
 
 [BMF E-Rechnung (German e-invoicing standard)](https://srutz.github.io/visualizer/?proxypdf=https://tinyurl.com/47y84da6&name=E-Rechnung)
 

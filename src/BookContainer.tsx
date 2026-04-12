@@ -137,8 +137,8 @@ export function BookContainer({ onPdfInfo, onPickFileRef, zen, useCovers, frontT
         if (last) nameFromUrl = decodeURIComponent(last).replace(/\.pdf$/i, '') || undefined
       } catch { /* ignore */ }
     }
-    const maxPagesParam = params.get('maxpages')
-    const maxPages = maxPagesParam ? Math.max(1, Math.min(200, parseInt(maxPagesParam, 10) || maxPagesProp)) : maxPagesProp
+    const maxPagesParam = params.get('maxpages') ?? params.get('maxPages')
+    const maxPages = maxPagesParam ? Math.max(1, Math.min(300, parseInt(maxPagesParam, 10) || maxPagesProp)) : maxPagesProp
     let cancelled = false
       ; (async () => {
         setError(null)
