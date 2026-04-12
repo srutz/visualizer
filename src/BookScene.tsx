@@ -145,13 +145,16 @@ function PdfOverlay({
 // Top-center overlay with prev/next page buttons. We dispatch the same
 // PageUp/PageDown KeyboardEvents the Book component already listens for,
 // so the buttons stay decoupled from the Book's internal step state.
+// @ts-ignore — react-bootstrap Button produces TS2590 with strict TS
+const BsButton: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }> = Button
+
 function PageNavButtons() {
   const flip = (key: 'PageUp' | 'PageDown') => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
   }
   return (
     <div className="fixed top-2 left-1/2 -translate-x-1/2 z-40 flex gap-2">
-      <Button
+      <BsButton
         variant="dark"
         size="sm"
         onClick={() => flip('PageUp')}
@@ -160,8 +163,8 @@ function PageNavButtons() {
         className="d-flex align-items-center gap-2 px-4"
       >
         <FaArrowLeft />
-      </Button>
-      <Button
+      </BsButton>
+      <BsButton
         variant="dark"
         size="sm"
         onClick={() => flip('PageDown')}
@@ -170,7 +173,7 @@ function PageNavButtons() {
         className="d-flex align-items-center gap-2 px-4"
       >
         <FaArrowRight />
-      </Button>
+      </BsButton>
     </div>
   )
 }
