@@ -128,14 +128,16 @@ export function App() {
               Stepan Rutz
             </a>
           </p>
-          <hr className="border-secondary" />
-          <Form.Check
-            type="switch"
-            id="zen-toggle"
-            label="Zen mode"
-            checked={zen}
-            onChange={(e) => setZen(e.target.checked)}
-          />
+          <div className="flex-col gap-1 hidden md:flex">
+            <hr className="border-secondary" />
+            <Form.Check
+              type="switch"
+              id="zen-toggle"
+              label="Zen mode"
+              checked={zen}
+              onChange={(e) => setZen(e.target.checked)}
+            />
+          </div>
         </Offcanvas.Body>
       </Offcanvas>
 

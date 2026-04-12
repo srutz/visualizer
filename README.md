@@ -8,6 +8,8 @@ by stepan.rutz ([https://www.stepanrutz.com](https://www.stepanrutz.com)). Licen
 
 ## Loading your own PDF
 
+First of all... only PDFs with a A3, A4 and so on aspect ratio (1:1.414) look good. The app will try to fit other aspect ratios but results may vary.
+
 You can load a PDF in three ways:
 
 - Drop a PDF file onto the window
