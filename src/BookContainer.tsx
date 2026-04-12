@@ -123,6 +123,15 @@ export function BookContainer({ onPdfInfo, onPickFileRef, zen, useCovers, frontT
     const pdfParam = directUrl
       ?? (proxyUrl ? `https://pdf-cors-proxy.srutz.workers.dev/?url=${encodeURIComponent(proxyUrl)}` : null)
     if (!pdfParam) return
+    // When proxying, derive the display name from the original URL so the
+    // book title isn't "document" or the proxy hostname.
+    let nameFromUrl: string | undefined
+    if (proxyUrl) {
+      try {
+        const last = new URL(proxyUrl).pathname.split('/').filter(Boolean).pop()
+        if (last) nameFromUrl = decodeURIComponent(last).replace(/\.pdf$/i, '') || undefined
+      } catch { /* ignore */ }
+    }
     let cancelled = false
       ; (async () => {
         setError(null)
@@ -131,7 +140,7 @@ export function BookContainer({ onPdfInfo, onPickFileRef, zen, useCovers, frontT
           const { loadPdfFromUrl, revokeLoadedPdf } = await import('./pdfLoader')
           const loaded = await loadPdfFromUrl(pdfParam, MAX_USER_PDF_PAGES, (cur, total) => {
             if (!cancelled) setLoading({ current: cur, total })
-          })
+          }, nameFromUrl)
           if (cancelled) {
             // Component unmounted mid-load — release the blob URLs we made.
             revokeLoadedPdf(loaded)

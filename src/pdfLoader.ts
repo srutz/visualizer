@@ -53,6 +53,7 @@ export async function loadPdfFromUrl(
   url: string,
   maxPages: number,
   onProgress?: LoadProgress,
+  nameOverride?: string,
 ): Promise<LoadedPdf> {
   // Signal "fetch in progress" before the byte-level work starts, so
   // the loading overlay shows up immediately for slow networks.
@@ -62,14 +63,17 @@ export async function loadPdfFromUrl(
     throw new Error(`Failed to fetch PDF: ${res.status} ${res.statusText}`)
   }
   const buffer = await res.arrayBuffer()
-  // Derive a display name from the URL's last path segment.
-  let name = 'document'
-  try {
-    const parsed = new URL(url, window.location.href)
-    const last = parsed.pathname.split('/').filter(Boolean).pop()
-    if (last) name = decodeURIComponent(last).replace(/\.pdf$/i, '') || 'document'
-  } catch {
-    // Fall through with the default name.
+  // Use the override if provided (e.g. when the fetch URL is a proxy),
+  // otherwise derive a display name from the URL's last path segment.
+  let name = nameOverride || 'document'
+  if (!nameOverride) {
+    try {
+      const parsed = new URL(url, window.location.href)
+      const last = parsed.pathname.split('/').filter(Boolean).pop()
+      if (last) name = decodeURIComponent(last).replace(/\.pdf$/i, '') || 'document'
+    } catch {
+      // Fall through with the default name.
+    }
   }
   return rasterizePdfBuffer(buffer, name, maxPages, onProgress)
 }
