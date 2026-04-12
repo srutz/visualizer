@@ -9,6 +9,7 @@ export function SceneContent({
   backCoverInnerText,
   frontCoverOuterImage,
   backCoverOuterImage,
+  coverColor,
   onPageOpen,
 }: {
   pageCount: number
@@ -17,6 +18,7 @@ export function SceneContent({
   backCoverInnerText: string | null
   frontCoverOuterImage?: string | null
   backCoverOuterImage?: string | null
+  coverColor?: string
   onPageOpen?: (pageNumber: number) => void
 }) {
   const shadows = true
@@ -39,6 +41,7 @@ export function SceneContent({
             backCoverInnerText={backCoverInnerText ?? undefined}
             frontCoverOuterImage={frontCoverOuterImage}
             backCoverOuterImage={backCoverOuterImage}
+            coverColor={coverColor}
           />
         </Center>
         {shadows && (

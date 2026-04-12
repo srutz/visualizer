@@ -13,6 +13,9 @@ export function App() {
   const [pdfInfo, setPdfInfo] = useState<{ url: string; filename: string } | null>(null);
   const [zen, setZen] = useLocalStorage("zenmode", false);
   const [useCovers, setUseCovers] = useLocalStorage("useCovers", false);
+  const [frontText, setFrontText] = useLocalStorage("frontCoverText", "");
+  const [backText, setBackText] = useLocalStorage("backCoverText", "");
+  const [coverColor, setCoverColor] = useLocalStorage("coverColor", "#3a2414");
   const pickFileRef = useRef<((file: File) => void) | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -63,6 +66,46 @@ export function App() {
             checked={useCovers}
             onChange={(e) => setUseCovers(e.target.checked)}
           />
+          <hr className="border-secondary" />
+          <Form.Group className="mb-2">
+            <Form.Label className="small text-secondary mb-1">Front cover text</Form.Label>
+            <Form.Control
+              size="sm"
+              type="text"
+              placeholder="(default)"
+              value={frontText}
+              onChange={(e) => setFrontText(e.target.value)}
+              data-bs-theme="dark"
+            />
+          </Form.Group>
+          <Form.Group className="mb-2">
+            <Form.Label className="small text-secondary mb-1">Back cover text</Form.Label>
+            <Form.Control
+              size="sm"
+              type="text"
+              placeholder="(default)"
+              value={backText}
+              onChange={(e) => setBackText(e.target.value)}
+              data-bs-theme="dark"
+            />
+          </Form.Group>
+          <Form.Group className="mb-2">
+            <Form.Label className="small text-secondary mb-1">Cover color</Form.Label>
+            <div className="d-flex align-items-center gap-2">
+              <Form.Control
+                type="color"
+                value={coverColor}
+                onChange={(e) => setCoverColor(e.target.value)}
+                style={{ width: 40, height: 30, padding: 2, border: "1px solid #555" }}
+              />
+              <span className="small text-secondary">{coverColor}</span>
+              {coverColor !== "#3a2414" && (
+                <BsButton variant="outline-secondary" size="sm" onClick={() => setCoverColor("#3a2414")}>
+                  Reset
+                </BsButton>
+              )}
+            </div>
+          </Form.Group>
           <div className="grow"></div>
           <p className="text-secondary small mb-0">
             License: MIT (it is free)
@@ -96,7 +139,7 @@ export function App() {
         }}
       />
 
-      <BookContainer onPdfInfo={setPdfInfo} onPickFileRef={pickFileRef} zen={zen} useCovers={useCovers} />
+      <BookContainer onPdfInfo={setPdfInfo} onPickFileRef={pickFileRef} zen={zen} useCovers={useCovers} frontTextOverride={frontText || undefined} backTextOverride={backText || undefined} coverColor={coverColor} />
     </div>
   );
 }

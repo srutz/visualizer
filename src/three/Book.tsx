@@ -59,9 +59,21 @@ type BookProps = {
   // 1-based. Plain clicks still flip the book; the modifier splits
   // the two gestures cleanly with no timing hack.
   onPageOpen?: (pageNumber: number) => void
+  // Color of the book cover leather. Defaults to a dark brown (#3a2414).
+  coverColor?: string
   // Initial rotation of the whole book, in radians [x, y, z]. Useful for
   // angling the book on a table without wrapping it in another group.
   rotation?: [number, number, number]
+}
+
+// Darken a hex color by a factor (0 = black, 1 = unchanged).
+function darkenColor(hex: string, factor: number): string {
+  const m = hex.match(/^#([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i)
+  if (!m) return hex
+  const r = Math.round(parseInt(m[1], 16) * factor)
+  const g = Math.round(parseInt(m[2], 16) * factor)
+  const b = Math.round(parseInt(m[3], 16) * factor)
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
 }
 
 const defaultDrawPage: DrawPage = (ctx, pageNumber, w, h, debug) => {
@@ -98,7 +110,7 @@ function usePageTexture(pageNumber: number, draw: DrawPage, debug?: boolean) {
 // cover face as a fallback when no image is provided. Word-wraps and shrinks
 // the font to fit; uses cream-on-leather colors so it reads as a stamped
 // title against the brown box behind it.
-function useTextTexture(text: string | null | undefined) {
+function useTextTexture(text: string | null | undefined, bgColor = '#3a2414') {
   const texture = useMemo(() => {
     if (!text) return null
     const w = TEXTURE_PX_WIDTH
@@ -110,7 +122,7 @@ function useTextTexture(text: string | null | undefined) {
 
     // Leather-colored background so the texture blends with the cover box
     // even at the very edges where the lift might let pixels peek through.
-    ctx.fillStyle = '#3a2414'
+    ctx.fillStyle = bgColor
     ctx.fillRect(0, 0, w, h)
 
     // Word-wrap: try a generous font size first, shrink until every line
@@ -159,7 +171,7 @@ function useTextTexture(text: string | null | undefined) {
     tex.anisotropy = 4
     tex.needsUpdate = true
     return tex
-  }, [text])
+  }, [text, bgColor])
   useEffect(() => () => texture?.dispose(), [texture])
   return texture
 }
@@ -223,6 +235,7 @@ export function Book({
   backCoverInnerText,
   backCoverOuterText,
   onPageOpen,
+  coverColor = '#3a2414',
   rotation = [0, 0, 0],
   debug = false,
 }: BookProps) {
@@ -300,6 +313,7 @@ export function Book({
         innerImageUrl={backCoverInnerImage}
         outerText={backCoverOuterText}
         innerText={backCoverInnerText}
+        coverColor={coverColor}
       />
 
       {/* Spine — shrinks and drops to table level when the book opens. */}
@@ -310,6 +324,7 @@ export function Book({
         closedCenterY={pagesStartY + totalPagesThickness / 2}
         openCenterY={pagesStartY - coverThickness / 2}
         open={coverOpen}
+        color={darkenColor(coverColor, 0.7)}
       />
 
       {/* Front cover — flips like a page when the book opens.
@@ -328,6 +343,7 @@ export function Book({
         innerImageUrl={frontCoverInnerImage}
         outerText={frontCoverOuterText}
         innerText={frontCoverInnerText}
+        coverColor={coverColor}
       />
 
       {/* Paper sheets.
@@ -371,6 +387,7 @@ function Spine({
   closedCenterY,
   openCenterY,
   open,
+  color = '#2a1810',
 }: {
   depth: number
   closedHeight: number
@@ -378,6 +395,7 @@ function Spine({
   closedCenterY: number
   openCenterY: number
   open: boolean
+  color?: string
 }) {
   const meshRef = useRef<THREE.Mesh>(null!)
   const openScale = openHeight / closedHeight
@@ -402,7 +420,7 @@ function Spine({
       position={[-0.03, closedCenterY, 0]}
     >
       <boxGeometry args={[0.06, closedHeight, depth]} />
-      <meshStandardMaterial color="#2a1810" roughness={0.9} />
+      <meshStandardMaterial color={color} roughness={0.9} />
     </mesh>
   )
 }
@@ -418,6 +436,7 @@ function Cover({
   innerImageUrl,
   outerText,
   innerText,
+  coverColor = '#3a2414',
 }: {
   width: number
   height: number
@@ -429,6 +448,7 @@ function Cover({
   innerImageUrl?: string | null
   outerText?: string | null
   innerText?: string | null
+  coverColor?: string
 }) {
   const groupRef = useRef<THREE.Group>(null!)
   const target = open ? Math.PI : 0
@@ -443,8 +463,8 @@ function Cover({
   // is empty, so a face never draws both at once.
   const outerImageTex = useImageTexture(outerImageUrl)
   const innerImageTex = useImageTexture(innerImageUrl)
-  const outerTextTex = useTextTexture(outerImageUrl ? null : outerText)
-  const innerTextTex = useTextTexture(innerImageUrl ? null : innerText)
+  const outerTextTex = useTextTexture(outerImageUrl ? null : outerText, coverColor)
+  const innerTextTex = useTextTexture(innerImageUrl ? null : innerText, coverColor)
   const outerTex = outerImageTex ?? outerTextTex
   const innerTex = innerImageTex ?? innerTextTex
 
@@ -455,7 +475,7 @@ function Cover({
     <group ref={groupRef} position={[0, hingeY, 0]}>
       <mesh castShadow receiveShadow position={[width / 2, meshYOffset, 0]}>
         <boxGeometry args={[width, thickness, height]} />
-        <meshStandardMaterial color="#3a2414" roughness={0.8} />
+        <meshStandardMaterial color={coverColor} roughness={0.8} />
       </mesh>
 
       {/* Outer face — top of the front cover when the book is closed. After
@@ -499,6 +519,7 @@ function BackCover({
   innerImageUrl,
   outerText,
   innerText,
+  coverColor = '#3a2414',
 }: {
   width: number
   height: number
@@ -512,6 +533,7 @@ function BackCover({
   innerImageUrl?: string | null
   outerText?: string | null
   innerText?: string | null
+  coverColor?: string
 }) {
   const groupRef = useRef<THREE.Group>(null!)
   const target = closed ? Math.PI : 0
@@ -526,8 +548,8 @@ function BackCover({
   // is empty, so a face never draws both at once.
   const outerImageTex = useImageTexture(outerImageUrl)
   const innerImageTex = useImageTexture(innerImageUrl)
-  const outerTextTex = useTextTexture(outerImageUrl ? null : outerText)
-  const innerTextTex = useTextTexture(innerImageUrl ? null : innerText)
+  const outerTextTex = useTextTexture(outerImageUrl ? null : outerText, coverColor)
+  const innerTextTex = useTextTexture(innerImageUrl ? null : innerText, coverColor)
   const outerTex = outerImageTex ?? outerTextTex
   const innerTex = innerImageTex ?? innerTextTex
 
@@ -538,7 +560,7 @@ function BackCover({
     <group ref={groupRef} position={[0, hingeY, 0]}>
       <mesh castShadow receiveShadow position={[width / 2, meshYOffset, 0]}>
         <boxGeometry args={[width, thickness, height]} />
-        <meshStandardMaterial color="#3a2414" roughness={0.8} />
+        <meshStandardMaterial color={coverColor} roughness={0.8} />
       </mesh>
 
       {/* Inner face — visible from above while the book is open; once the

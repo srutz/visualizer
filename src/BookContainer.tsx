@@ -34,7 +34,7 @@ export const MAX_USER_PDF_PAGES = 48
 
 
 
-export function BookContainer({ onPdfInfo, onPickFileRef, zen, useCovers }: { onPdfInfo?: (info: { url: string; filename: string }) => void; onPickFileRef?: React.RefObject<((file: File) => void) | null>; zen?: boolean; useCovers?: boolean }) {
+export function BookContainer({ onPdfInfo, onPickFileRef, zen, useCovers, frontTextOverride, backTextOverride, coverColor }: { onPdfInfo?: (info: { url: string; filename: string }) => void; onPickFileRef?: React.RefObject<((file: File) => void) | null>; zen?: boolean; useCovers?: boolean; frontTextOverride?: string; backTextOverride?: string; coverColor?: string }) {
   const [overlayPage, setOverlayPage] = useState<number | null>(null)
   const [customBook, setCustomBook] = useState<LoadedPdf | null>(null)
   const [loading, setLoading] = useState<{ current: number; total: number } | null>(null)
@@ -59,8 +59,8 @@ export function BookContainer({ onPdfInfo, onPickFileRef, zen, useCovers }: { on
   const pdfFilename = customBook
     ? `${customBook.name}.pdf`
     : `${DEFAULT_BOOK_DIR}.pdf`
-  const frontCoverText = customBook ? customBook.name : 'Stepan Rutz'
-  const backCoverInnerText = customBook ? null : 'stepan.rutz@stepanrutz.com'
+  const frontCoverText = frontTextOverride ?? (customBook ? customBook.name : 'Stepan Rutz')
+  const backCoverInnerText = backTextOverride ?? (customBook ? null : 'stepan.rutz@stepanrutz.com')
 
   // When useCovers is on, pull the first and last page images onto the
   // cover faces and remove them from the interior page list.
@@ -217,6 +217,7 @@ export function BookContainer({ onPdfInfo, onPickFileRef, zen, useCovers }: { on
           backCoverInnerText={backCoverInnerText}
           frontCoverOuterImage={frontCoverOuterImage}
           backCoverOuterImage={backCoverOuterImage}
+          coverColor={coverColor}
           onPageOpen={
             pdfUrl ? (pageNumber) => setOverlayPage(pageNumber) : undefined
           }
