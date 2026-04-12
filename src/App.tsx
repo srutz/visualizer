@@ -16,6 +16,7 @@ export function App() {
   const [frontText, setFrontText] = useLocalStorage("frontCoverText", "");
   const [backText, setBackText] = useLocalStorage("backCoverText", "");
   const [coverColor, setCoverColor] = useLocalStorage("coverColor", "#3a2414");
+  const [maxPages, setMaxPages] = useLocalStorage("maxPages", 48);
   const pickFileRef = useRef<((file: File) => void) | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -106,6 +107,18 @@ export function App() {
               )}
             </div>
           </Form.Group>
+          <Form.Group className="mb-2">
+            <Form.Label className="small text-secondary mb-1">Max pages</Form.Label>
+            <Form.Control
+              size="sm"
+              type="number"
+              min={1}
+              max={200}
+              value={maxPages}
+              onChange={(e) => setMaxPages(Math.max(1, Math.min(200, parseInt(e.target.value, 10) || 48)))}
+              data-bs-theme="dark"
+            />
+          </Form.Group>
           <div className="grow"></div>
           <p className="text-secondary small mb-0">
             License: MIT (it is free)
@@ -139,7 +152,7 @@ export function App() {
         }}
       />
 
-      <BookContainer onPdfInfo={setPdfInfo} onPickFileRef={pickFileRef} zen={zen} useCovers={useCovers} frontTextOverride={frontText || undefined} backTextOverride={backText || undefined} coverColor={coverColor} />
+      <BookContainer onPdfInfo={setPdfInfo} onPickFileRef={pickFileRef} zen={zen} useCovers={useCovers} frontTextOverride={frontText || undefined} backTextOverride={backText || undefined} coverColor={coverColor} maxPages={maxPages} />
     </div>
   );
 }

@@ -24,9 +24,9 @@ own domain) always work. And as a small tip, you don't want to allow ```*``` COR
 
 ## Example PDFs
 
-[Pro Git book](https://srutz.github.io/visualizer/?proxypdf=https://github.com/progit/progit2/releases/download/2.1.449/progit.pdf)
+[Pro Git book](https://srutz.github.io/visualizer/?proxypdf=https://github.com/progit/progit2/releases/download/2.1.449/progit.pdf&name=Pro%20Git)
 
-[BMF E-Rechnung (German e-invoicing standard)](https://srutz.github.io/visualizer/?proxypdf=https://tinyurl.com/47y84da6)
+[BMF E-Rechnung (German e-invoicing standard)](https://srutz.github.io/visualizer/?proxypdf=https://tinyurl.com/47y84da6&name=E-Rechnung)
 
 
 

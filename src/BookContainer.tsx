@@ -34,7 +34,7 @@ export const MAX_USER_PDF_PAGES = 48
 
 
 
-export function BookContainer({ onPdfInfo, onPickFileRef, zen, useCovers, frontTextOverride, backTextOverride, coverColor }: { onPdfInfo?: (info: { url: string; filename: string }) => void; onPickFileRef?: React.RefObject<((file: File) => void) | null>; zen?: boolean; useCovers?: boolean; frontTextOverride?: string; backTextOverride?: string; coverColor?: string }) {
+export function BookContainer({ onPdfInfo, onPickFileRef, zen, useCovers, frontTextOverride, backTextOverride, coverColor, maxPages: maxPagesProp = MAX_USER_PDF_PAGES }: { onPdfInfo?: (info: { url: string; filename: string }) => void; onPickFileRef?: React.RefObject<((file: File) => void) | null>; zen?: boolean; useCovers?: boolean; frontTextOverride?: string; backTextOverride?: string; coverColor?: string; maxPages?: number }) {
   const [overlayPage, setOverlayPage] = useState<number | null>(null)
   const [customBook, setCustomBook] = useState<LoadedPdf | null>(null)
   const [loading, setLoading] = useState<{ current: number; total: number } | null>(null)
@@ -85,7 +85,7 @@ export function BookContainer({ onPdfInfo, onPickFileRef, zen, useCovers, frontT
       // Lazy-load pdfjs-dist — it's a ~1 MB dep we'd rather not ship
       // to visitors who only ever read the default book.
       const { loadPdfAsBook } = await import('./pdfLoader')
-      const loaded = await loadPdfAsBook(file, MAX_USER_PDF_PAGES, (cur, total) => {
+      const loaded = await loadPdfAsBook(file, maxPagesProp, (cur, total) => {
         setLoading({ current: cur, total })
       })
       // setCustomBook's cleanup effect will revoke the previous one for us.
@@ -103,7 +103,7 @@ export function BookContainer({ onPdfInfo, onPickFileRef, zen, useCovers, frontT
     } finally {
       setLoading(null)
     }
-  }, [])
+  }, [maxPagesProp])
 
   // Expose handleFile to the parent via ref so the sidebar can trigger uploads.
   useEffect(() => {
@@ -116,6 +116,8 @@ export function BookContainer({ onPdfInfo, onPickFileRef, zen, useCovers, frontT
   // by fetching that PDF and loading it through the same rasterizer the
   // drop/upload path uses. ?pdf= fetches directly (needs CORS on the remote
   // server); ?proxypdf= routes through the Cloudflare CORS proxy worker.
+  // Optional params: ?name=<title> sets the front cover text,
+  // ?maxpages=<n> overrides the page limit.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const directUrl = params.get('pdf')
@@ -126,19 +128,24 @@ export function BookContainer({ onPdfInfo, onPickFileRef, zen, useCovers, frontT
     // When proxying, derive the display name from the original URL so the
     // book title isn't "document" or the proxy hostname.
     let nameFromUrl: string | undefined
-    if (proxyUrl) {
+    const nameParam = params.get('name')
+    if (nameParam) {
+      nameFromUrl = nameParam
+    } else if (proxyUrl) {
       try {
         const last = new URL(proxyUrl).pathname.split('/').filter(Boolean).pop()
         if (last) nameFromUrl = decodeURIComponent(last).replace(/\.pdf$/i, '') || undefined
       } catch { /* ignore */ }
     }
+    const maxPagesParam = params.get('maxpages')
+    const maxPages = maxPagesParam ? Math.max(1, Math.min(200, parseInt(maxPagesParam, 10) || maxPagesProp)) : maxPagesProp
     let cancelled = false
       ; (async () => {
         setError(null)
         setLoading({ current: 0, total: 0 })
         try {
           const { loadPdfFromUrl, revokeLoadedPdf } = await import('./pdfLoader')
-          const loaded = await loadPdfFromUrl(pdfParam, MAX_USER_PDF_PAGES, (cur, total) => {
+          const loaded = await loadPdfFromUrl(pdfParam, maxPages, (cur, total) => {
             if (!cancelled) setLoading({ current: cur, total })
           }, nameFromUrl)
           if (cancelled) {
