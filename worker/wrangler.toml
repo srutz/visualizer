@@ -1,0 +1,9 @@
+name = "pdf-cors-proxy"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+[vars]
+# Comma-separated list of allowed origins. "*" allows any origin.
+ALLOWED_ORIGINS = "https://srutz.github.io"
+# Maximum PDF size in bytes (default 50 MB).
+MAX_SIZE = "52428800"

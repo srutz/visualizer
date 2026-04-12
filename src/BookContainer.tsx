@@ -112,13 +112,16 @@ export function BookContainer({ onPdfInfo, onPickFileRef, zen, useCovers, frontT
     }
   }, [handleFile, onPickFileRef])
 
-  // On first mount, honor a ?pdf=<url> query parameter by fetching
-  // that PDF and loading it through the same rasterizer the drop/upload
-  // path uses. Cross-origin URLs require permissive CORS on the remote
-  // server; otherwise fetch will fail and we surface the error.
+  // On first mount, honor a ?pdf=<url> or ?proxypdf=<url> query parameter
+  // by fetching that PDF and loading it through the same rasterizer the
+  // drop/upload path uses. ?pdf= fetches directly (needs CORS on the remote
+  // server); ?proxypdf= routes through the Cloudflare CORS proxy worker.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    const pdfParam = params.get('pdf')
+    const directUrl = params.get('pdf')
+    const proxyUrl = params.get('proxypdf')
+    const pdfParam = directUrl
+      ?? (proxyUrl ? `https://pdf-cors-proxy.srutz.workers.dev/?url=${encodeURIComponent(proxyUrl)}` : null)
     if (!pdfParam) return
     let cancelled = false
       ; (async () => {
