@@ -1,14 +1,17 @@
 
 
-import { Center, ContactShadows, OrbitControls } from '@react-three/drei'
 import { Canvas } from '@react-three/fiber'
 import { useCallback, useEffect, useState } from 'react'
-import { Button } from 'react-bootstrap'
-import { FaArrowLeft, FaArrowRight, FaFilePdf } from 'react-icons/fa6'
-import { Book } from './Book'
 // Type-only import — erased at compile time, so pulling pdfjs-dist in
 // through pdfLoader stays a runtime-only cost paid lazily below.
+import { DropOverlay } from './DropOverlay'
+import { ErrorToast } from './ErrorToast'
+import { LoadingOverlay } from './LoadingOverlay'
+import { PageNavButtons } from './PageNavButtons'
 import type { LoadedPdf } from './pdfLoader'
+import { PdfOverlay } from './PdfOverlay'
+import { SceneHint } from './SceneHint'
+import { SceneContent } from './three/SceneContent'
 
 // Default book that ships with the site. BOOK_DIR is the subfolder name
 // you passed to scripts/pdf-to-pages.sh (under public/), and
@@ -27,235 +30,11 @@ const defaultPageImages = Array.from(
 // Keep the browser-side PDF loader honest — rasterizing every page to
 // a PNG at 1024px eats memory fast, and a CV or a pitch deck almost
 // never needs more than this anyway.
-const MAX_USER_PDF_PAGES = 48
+export const MAX_USER_PDF_PAGES = 48
 
-function SceneContent({
-  pageCount,
-  pageImages,
-  frontCoverText,
-  backCoverInnerText,
-  onPageOpen,
-}: {
-  pageCount: number
-  pageImages: (string | null | undefined)[]
-  frontCoverText: string
-  backCoverInnerText: string | null
-  onPageOpen?: (pageNumber: number) => void
-}) {
-  const shadows = true
-  const sheetCount = Math.max(1, Math.ceil(pageCount / 2))
-  return (
-    <>
-      <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} decay={0} intensity={Math.PI} />
-      <group position={[0, -0.25, 0]}>
-        <Center top position={[1, 0.3, 0]} >
-          <Book
-            // Rebuild the Book outright when the source PDF changes,
-            // so sheet textures don't hold onto revoked blob URLs from
-            // the previous document.
-            key={`${pageCount}:${pageImages[0] ?? ''}`}
-            pageCount={sheetCount}
-            pageImages={pageImages}
-            onPageOpen={onPageOpen}
-            rotation={[0.0, 0, 0]}
-            frontCoverOuterText={frontCoverText}
-            backCoverInnerText={backCoverInnerText ?? undefined}
-          />
-        </Center>
-        {shadows && (
-          // ContactShadows is a real-time shadow that re-renders every
-          // frame, so it tracks the book as it opens / closes / flips.
-          // AccumulativeShadows by contrast bakes once and freezes —
-          // fine for static scenes, wrong for an animating book.
-          <ContactShadows
-            position={[0, 0.005, 0]}
-            scale={10}
-            resolution={1024}
-            far={3}
-            blur={2.5}
-            opacity={0.6}
-            color="#000000"
-          />
-        )}
-      </group>
-      <OrbitControls enablePan={true} minPolarAngle={0} maxPolarAngle={Math.PI / 2.25} />
-    </>
-  )
-}
 
-// Fullscreen HTML overlay that embeds the original PDF at a specific
-// page using the browser's built-in viewer. Chrome (PDFium) and Firefox
-// (PDF.js) both honor the `#page=N` / `#view=FitH` fragment from
-// Adobe's "Open Parameters" spec, so the page is rendered as real
-// vectors at display resolution — no PNG raster involved.
-function PdfOverlay({
-  url,
-  page,
-  onClose,
-}: {
-  url: string
-  page: number
-  onClose: () => void
-}) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
 
-  const src = `${url}#page=${page}&view=FitH`
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="relative w-[min(95vw,900px)] h-[min(96vh,1200px)] bg-white shadow-2xl rounded overflow-hidden border border-zinc-400"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <iframe
-          key={src}
-          src={src}
-          title={`PDF page ${page}`}
-          className="w-full h-full border-0"
-        />
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute top-2 right-2 w-9 h-9 rounded-full bg-black/60 text-white text-xl leading-none hover:bg-black/80"
-          aria-label="Close PDF"
-        >
-          ×
-        </button>
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute bottom-3 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full bg-black/60 text-white text-sm hover:bg-black/80"
-        >
-          Close
-        </button>
-      </div>
-    </div>
-  )
-}
-
-// Top-center overlay with prev/next page buttons. We dispatch the same
-// PageUp/PageDown KeyboardEvents the Book component already listens for,
-// so the buttons stay decoupled from the Book's internal step state.
-// @ts-ignore — react-bootstrap Button produces TS2590 with strict TS
-const BsButton: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }> = Button
-
-function PageNavButtons() {
-  const flip = (key: 'PageUp' | 'PageDown') => {
-    window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
-  }
-  return (
-    <div className="fixed top-2 left-1/2 -translate-x-1/2 z-40 flex gap-2">
-      <BsButton
-        variant="dark"
-        size="sm"
-        onClick={() => flip('PageUp')}
-        title="Previous page"
-        aria-label="Previous page"
-        className="d-flex align-items-center gap-2 px-4"
-      >
-        <FaArrowLeft />
-      </BsButton>
-      <BsButton
-        variant="dark"
-        size="sm"
-        onClick={() => flip('PageDown')}
-        title="Next page"
-        aria-label="Next page"
-        className="d-flex align-items-center gap-2 px-4"
-      >
-        <FaArrowRight />
-      </BsButton>
-    </div>
-  )
-}
-
-function SceneHint() {
-  const modKey =
-    typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
-      ? '⌘'
-      : 'Ctrl'
-  return (
-    <div className="min-w-[600px] fixed bottom-4 left-1/2 -translate-x-1/2 z-40 pointer-events-none">
-      <div className="px-4 py-2 rounded-full bg-black/60 text-white text-xs sm:text-sm backdrop-blur-sm shadow flex items-center justify-center">
-        <span>Click/PageDown to flip</span>
-        <span className="mx-3">·</span>
-        <span>Shift+Click/PageUp to flip back</span>
-        <span className="mx-3">·</span>
-        <span>{modKey}+Click to open PDF-Page</span>
-        <span className="mx-3">·</span>
-        <span>Drop a PDF to load it</span>
-      </div>
-    </div>
-  )
-}
-
-function DropOverlay() {
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm pointer-events-none">
-      <div className="px-10 py-8 rounded-2xl border-4 border-dashed border-white/80 text-white text-xl font-semibold flex flex-col items-center gap-3">
-        <FaFilePdf className="w-10 h-10" />
-        Drop your PDF to load it (max {MAX_USER_PDF_PAGES} pages)
-      </div>
-    </div>
-  )
-}
-
-function LoadingOverlay({ current, total }: { current: number; total: number }) {
-  const pct = total > 0 ? Math.round((current / total) * 100) : 0
-  return (
-    <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="px-8 py-6 rounded-xl bg-zinc-900 text-white shadow-2xl flex flex-col gap-3 min-w-[280px]">
-        <div className="text-sm">
-          {total === 0
-            ? 'Opening PDF…'
-            : `Rendering page ${current} of ${total}…`}
-        </div>
-        <div className="h-2 w-full bg-zinc-700 rounded overflow-hidden">
-          <div
-            className="h-full bg-white transition-[width] duration-150"
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ErrorToast({
-  message,
-  onDismiss,
-}: {
-  message: string
-  onDismiss: () => void
-}) {
-  useEffect(() => {
-    const id = window.setTimeout(onDismiss, 6000)
-    return () => window.clearTimeout(id)
-  }, [onDismiss])
-  return (
-    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[70] px-4 py-2 rounded-lg bg-red-700 text-white text-sm shadow-lg">
-      {message}
-      <button
-        type="button"
-        onClick={onDismiss}
-        className="ml-3 underline"
-      >
-        dismiss
-      </button>
-    </div>
-  )
-}
-
-export function BookScene({ onPdfInfo, onPickFileRef, zen }: { onPdfInfo?: (info: { url: string; filename: string }) => void; onPickFileRef?: React.RefObject<((file: File) => void) | null>; zen?: boolean }) {
+export function BookContainer({ onPdfInfo, onPickFileRef, zen, useCovers }: { onPdfInfo?: (info: { url: string; filename: string }) => void; onPickFileRef?: React.RefObject<((file: File) => void) | null>; zen?: boolean; useCovers?: boolean }) {
   const [overlayPage, setOverlayPage] = useState<number | null>(null)
   const [customBook, setCustomBook] = useState<LoadedPdf | null>(null)
   const [loading, setLoading] = useState<{ current: number; total: number } | null>(null)
@@ -274,14 +53,22 @@ export function BookScene({ onPdfInfo, onPickFileRef, zen }: { onPdfInfo?: (info
     }
   }, [customBook])
 
-  const pageCount = customBook?.pageCount ?? DEFAULT_BOOK_PAGE_COUNT
-  const pageImages = customBook?.pageImages ?? defaultPageImages
+  const rawPageCount = customBook?.pageCount ?? DEFAULT_BOOK_PAGE_COUNT
+  const rawPageImages = customBook?.pageImages ?? defaultPageImages
   const pdfUrl = customBook?.pdfUrl ?? DEFAULT_BOOK_PDF_URL
   const pdfFilename = customBook
     ? `${customBook.name}.pdf`
     : `${DEFAULT_BOOK_DIR}.pdf`
   const frontCoverText = customBook ? customBook.name : 'Stepan Rutz'
   const backCoverInnerText = customBook ? null : 'stepan.rutz@stepanrutz.com'
+
+  // When useCovers is on, pull the first and last page images onto the
+  // cover faces and remove them from the interior page list.
+  const canUseCovers = useCovers && rawPageImages.length >= 2
+  const frontCoverOuterImage = canUseCovers ? (rawPageImages[0] ?? null) : null
+  const backCoverOuterImage = canUseCovers ? (rawPageImages[rawPageImages.length - 1] ?? null) : null
+  const pageImages = canUseCovers ? rawPageImages.slice(1, -1) : rawPageImages
+  const pageCount = canUseCovers ? Math.max(0, rawPageCount - 2) : rawPageCount
 
   useEffect(() => {
     onPdfInfo?.({ url: pdfUrl, filename: pdfFilename })
@@ -428,6 +215,8 @@ export function BookScene({ onPdfInfo, onPickFileRef, zen }: { onPdfInfo?: (info
           pageImages={pageImages}
           frontCoverText={frontCoverText}
           backCoverInnerText={backCoverInnerText}
+          frontCoverOuterImage={frontCoverOuterImage}
+          backCoverOuterImage={backCoverOuterImage}
           onPageOpen={
             pdfUrl ? (pageNumber) => setOverlayPage(pageNumber) : undefined
           }

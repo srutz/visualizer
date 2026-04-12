@@ -22,13 +22,6 @@ them the browser blocks the request and the app shows a "Failed to
 fetch" error. Same-origin URLs (anything served from the visualizer's
 own domain) always work. And as a small tip, you don't want to allow ```*``` CORS on a real PDF-serving endpoint.
 
-## Zen mode
-
-Add `mode=zen` to the query string to strip all UI chrome — header,
-download button, hint bar, drop overlay — leaving only the prev/next
-page buttons and a tiny GitHub link in the top-left corner. Combines
-with `pdf`, e.g.
-[`?pdf=…&mode=zen`](https://srutz.github.io/visualizer/?mode=zen).
 
 ## Techstack
 

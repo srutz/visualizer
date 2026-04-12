@@ -2,8 +2,9 @@ import { useLocalStorage } from "@uidotdev/usehooks";
 import { useRef, useState } from "react";
 import { Button, Form, Nav, Offcanvas } from "react-bootstrap";
 import { FaDownload, FaGithub, FaUpload } from "react-icons/fa6";
-import { BookScene } from "./BookScene";
+import { BookContainer } from "./BookContainer";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore — react-bootstrap Button produces TS2590 with strict TS
 const BsButton: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }> = Button
 
@@ -11,6 +12,7 @@ export function App() {
   const [showSidebar, setShowSidebar] = useState(false);
   const [pdfInfo, setPdfInfo] = useState<{ url: string; filename: string } | null>(null);
   const [zen, setZen] = useLocalStorage("zenmode", false);
+  const [useCovers, setUseCovers] = useLocalStorage("useCovers", false);
   const pickFileRef = useRef<((file: File) => void) | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -25,7 +27,7 @@ export function App() {
         ☰
       </BsButton>
 
-      <Offcanvas show={showSidebar} onHide={() => setShowSidebar(false)} style={{ width: "280px" }} data-bs-theme="dark">
+      <Offcanvas show={showSidebar} onHide={() => setShowSidebar(false)} scroll backdrop={false} style={{ width: "280px" }} data-bs-theme="dark">
         <Offcanvas.Header closeButton>
           <Offcanvas.Title>PDF-Visualizer</Offcanvas.Title>
         </Offcanvas.Header>
@@ -53,6 +55,14 @@ export function App() {
               <FaGithub /> Source Code
             </Nav.Link>
           </Nav>
+          <hr className="border-secondary" />
+          <Form.Check
+            type="switch"
+            id="covers-toggle"
+            label="Use first/last pages as covers"
+            checked={useCovers}
+            onChange={(e) => setUseCovers(e.target.checked)}
+          />
           <div className="grow"></div>
           <p className="text-secondary small mb-0">
             License: MIT (it is free)
@@ -86,7 +96,7 @@ export function App() {
         }}
       />
 
-      <BookScene onPdfInfo={setPdfInfo} onPickFileRef={pickFileRef} zen={zen} />
+      <BookContainer onPdfInfo={setPdfInfo} onPickFileRef={pickFileRef} zen={zen} useCovers={useCovers} />
     </div>
   );
 }
