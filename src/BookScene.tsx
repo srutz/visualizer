@@ -2,8 +2,9 @@
 
 import { Center, ContactShadows, OrbitControls } from '@react-three/drei'
 import { Canvas } from '@react-three/fiber'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { FaArrowLeft, FaArrowRight, FaFilePdf, FaGithub, FaUpload } from 'react-icons/fa6'
+import { useCallback, useEffect, useState } from 'react'
+import { Button } from 'react-bootstrap'
+import { FaArrowLeft, FaArrowRight, FaFilePdf } from 'react-icons/fa6'
 import { Book } from './Book'
 // Type-only import — erased at compile time, so pulling pdfjs-dist in
 // through pdfLoader stays a runtime-only cost paid lazily below.
@@ -150,90 +151,26 @@ function PageNavButtons() {
   }
   return (
     <div className="fixed top-2 left-1/2 -translate-x-1/2 z-40 flex gap-2">
-      <button
-        type="button"
+      <Button
+        variant="dark"
+        size="sm"
         onClick={() => flip('PageUp')}
         title="Previous page"
         aria-label="Previous page"
-        className="px-[32px] py-2 bg-black/60 text-white text-xs sm:text-sm backdrop-blur-sm shadow flex gap-2 items-center"
+        className="d-flex align-items-center gap-2 px-4"
       >
-        <FaArrowLeft className="w-5 h-5" />
-      </button>
-      <button
-        type="button"
+        <FaArrowLeft />
+      </Button>
+      <Button
+        variant="dark"
+        size="sm"
         onClick={() => flip('PageDown')}
         title="Next page"
         aria-label="Next page"
-        className="px-[32px] py-2 bg-black/60 text-white text-xs sm:text-sm backdrop-blur-sm shadow flex gap-2 items-center"
+        className="d-flex align-items-center gap-2 px-4"
       >
-        <FaArrowRight className="w-5 h-5" />
-      </button>
-    </div>
-  )
-}
-
-// Zen mode: the only chrome we keep besides the page-flip buttons is
-// this tiny GitHub link tucked into the top-left corner.
-function ZenGithubLink() {
-  return (
-    <a
-      href="https://github.com/srutz/visualizer"
-      target="_blank"
-      rel="noopener noreferrer"
-      title="Source code on GitHub"
-      aria-label="Source code on GitHub"
-      className="fixed top-2 left-2 z-40 p-1 text-white/60 hover:text-white/90"
-    >
-      <FaGithub className="w-5 h-5" />
-    </a>
-  )
-}
-
-function PdfDownloadButton({ url, filename }: { url: string; filename: string }) {
-  return (
-    <a
-      href={url}
-      download={filename}
-      title="Download PDF"
-      aria-label="Download PDF"
-      className="fixed top-2 right-2 z-40 ">
-      <div className="px-[64px] py-2 bg-black/60 text-white text-xs sm:text-sm backdrop-blur-sm shadow flex gap-2">
-        < FaFilePdf className="w-5 h-5" />
-        Download PDF
-      </div>
-    </a>
-  )
-}
-
-function Header({ onPickFile }: { onPickFile: (file: File) => void }) {
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  return (
-    <div className="fixed top-2 left-2 z-40 ">
-      <div className="px-[64px] py-2 bg-black/60 text-white text-xs sm:text-sm backdrop-blur-sm shadow flex flex-col gap-2 items-center">
-        <div>
-          Free PDF Visualizer by <a href="https://www.stepanrutz.com" target="_blank" rel="noopener noreferrer" className="underline">Stepan Rutz</a>
-        </div>
-        <a href="https://github.com/srutz/visualizer" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 underline"><FaGithub className="w-5 h-5" /> Sourceode </a>
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="flex items-center gap-2 underline"
-        >
-          <FaUpload className="w-4 h-4" /> Load your own PDF
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="application/pdf,.pdf"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0]
-            if (file) onPickFile(file)
-            // Reset so picking the same file twice still fires change.
-            e.target.value = ''
-          }}
-        />
-      </div>
+        <FaArrowRight />
+      </Button>
     </div>
   )
 }
@@ -315,19 +252,12 @@ function ErrorToast({
   )
 }
 
-export function BookScene() {
+export function BookScene({ onPdfInfo, onPickFileRef, zen }: { onPdfInfo?: (info: { url: string; filename: string }) => void; onPickFileRef?: React.RefObject<((file: File) => void) | null>; zen?: boolean }) {
   const [overlayPage, setOverlayPage] = useState<number | null>(null)
   const [customBook, setCustomBook] = useState<LoadedPdf | null>(null)
   const [loading, setLoading] = useState<{ current: number; total: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
-
-  // ?mode=zen strips all chrome except the page-flip buttons and a
-  // tiny GitHub link. Parsed once via a lazy useState initializer so
-  // we don't re-read window.location on every render.
-  const [isZen] = useState(
-    () => new URLSearchParams(window.location.search).get('mode') === 'zen',
-  )
 
   // Revoke the custom book's blob URLs when it's replaced or the
   // component unmounts. Tied to customBook identity so a new upload
@@ -349,6 +279,10 @@ export function BookScene() {
     : `${DEFAULT_BOOK_DIR}.pdf`
   const frontCoverText = customBook ? customBook.name : 'Stepan Rutz'
   const backCoverInnerText = customBook ? null : 'stepan.rutz@stepanrutz.com'
+
+  useEffect(() => {
+    onPdfInfo?.({ url: pdfUrl, filename: pdfFilename })
+  }, [pdfUrl, pdfFilename, onPdfInfo])
 
   const handleFile = useCallback(async (file: File) => {
     if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
@@ -380,6 +314,13 @@ export function BookScene() {
       setLoading(null)
     }
   }, [])
+
+  // Expose handleFile to the parent via ref so the sidebar can trigger uploads.
+  useEffect(() => {
+    if (onPickFileRef) {
+      (onPickFileRef as React.MutableRefObject<((file: File) => void) | null>).current = handleFile
+    }
+  }, [handleFile, onPickFileRef])
 
   // On first mount, honor a ?pdf=<url> query parameter by fetching
   // that PDF and loading it through the same rasterizer the drop/upload
@@ -489,12 +430,9 @@ export function BookScene() {
           }
         />
       </Canvas>
-      {!isZen && <Header onPickFile={handleFile} />}
-      {isZen && <ZenGithubLink />}
       <PageNavButtons />
-      {!isZen && pdfUrl && <PdfDownloadButton url={pdfUrl} filename={pdfFilename} />}
-      {!isZen && <SceneHint />}
-      {dragging && !isZen && <DropOverlay />}
+      {!zen && <SceneHint />}
+      {dragging && !zen && <DropOverlay />}
       {loading && <LoadingOverlay current={loading.current} total={loading.total} />}
       {error && <ErrorToast message={error} onDismiss={() => setError(null)} />}
       {pdfUrl && overlayPage !== null && (
