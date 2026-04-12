@@ -9,7 +9,7 @@ import { BookContainer } from "./BookContainer";
 const BsButton: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }> = Button
 
 export function App() {
-  const [showSidebar, setShowSidebar] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(true);
   const [pdfInfo, setPdfInfo] = useState<{ url: string; filename: string } | null>(null);
   const [zen, setZen] = useLocalStorage("zenmode", false);
   const [useCovers, setUseCovers] = useLocalStorage("useCovers", false);
