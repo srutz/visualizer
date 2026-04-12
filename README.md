@@ -25,7 +25,7 @@ own domain) always work. And as a small tip, you don't want to allow ```*``` COR
 
 ## Techstack
 
-... React + TypeScript + Vite and of course the React Compiler is enabled on this project.
+... React + React Three Fiber + Vite and of course the React Compiler is enabled on this project.
 
 ## Made with LLMs and a few % manual coding 
 
