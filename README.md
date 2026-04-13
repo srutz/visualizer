@@ -5,9 +5,9 @@ by stepan.rutz ([https://www.stepanrutz.com](https://www.stepanrutz.com)). Licen
 
 ## Demo Video
 
-![PDF-Visualizer, realistic video](https://static.stepanrutz.com/pdfvisualizer.mp4)
+![PDF-Visualizer, realistic video](docs/pdfvisualizer.mp4)
 
-## Anigif
+## Anigif (Lowres unfortunately)
 
 ![PDF-Visualizer, ANIGIF / Lowres](docs/pdfvisualizer.gif)
 
