@@ -279,15 +279,41 @@ export function Book({
   const totalPagesThickness = pageCount * pageThickness
   const pagesStartY = -totalPagesThickness / 2
 
+  const bookGroupRef = useRef<THREE.Group>(null!)
+
   const turn = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation()
     // Ctrl/⌘-click is reserved for opening the page overlay — handled by
     // the Sheet face meshes below. Here we only care about plain/shift clicks.
     if (e.nativeEvent.ctrlKey || e.nativeEvent.metaKey) return
-    if (e.nativeEvent.shiftKey) {
-      setStep((p) => Math.max(p - 1, 0))
+
+    // Determine click side in the book's local coordinate system.
+    // Spine is at x=0; unflipped pages extend to +x (right), flipped to -x (left).
+    const localPoint = bookGroupRef.current.worldToLocal(e.point.clone())
+    const clickedLeft = localPoint.x < 0
+
+    // When book is open: left side → backward, right side → forward.
+    // Shift inverts the direction.
+    // When book is closed (step 0): always forward.
+    // When book is fully closed at end (step maxStep): always backward.
+    let forward: boolean
+    if (step === 0) {
+      // Book closed at front — clicking the front cover opens forward,
+      // shift+click goes backward (to step 0, effectively a no-op).
+      forward = !e.nativeEvent.shiftKey
+    } else if (step >= maxStep) {
+      // Book closed at back — clicking the back cover goes backward,
+      // shift+click goes forward (no-op since already at max).
+      forward = e.nativeEvent.shiftKey
     } else {
+      // Book is open — side determines direction, shift inverts.
+      forward = e.nativeEvent.shiftKey ? clickedLeft : !clickedLeft
+    }
+
+    if (forward) {
       setStep((p) => Math.min(p + 1, maxStep))
+    } else {
+      setStep((p) => Math.max(p - 1, 0))
     }
   }
 
@@ -298,7 +324,7 @@ export function Book({
   const coverHeight = height + 0.06
 
   return (
-    <group rotation={rotation} onClick={turn}>
+    <group ref={bookGroupRef} rotation={rotation} onClick={turn}>
       {/* Back cover — hinges at the spine like the front cover does. While
           the book is open it sits below the page stack (rotation 0); on the
           final click it swings 180° to close on top of the flipped pages. */}
