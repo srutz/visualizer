@@ -42,7 +42,7 @@ own domain) always work. And as a small tip, you don't want to allow ```*``` COR
 | `pdf` | URL of a PDF to load (requires CORS) | — |
 | `proxypdf` | URL of a PDF to load via the CORS proxy | — |
 | `name` | Title shown on the front cover | filename derived from URL |
-| `maxpages` / `maxPages` | Maximum number of pages to render (1–300) | 48 |
+| `maxpages` | Maximum number of pages to render (1–300) | 48 |
 
 ## Example PDFs
 
@@ -64,6 +64,6 @@ Checkout
 
 [https://github.com/srutz/cagent](https://github.com/srutz/cagent) 
 
-for the free opensource agent that helped me build this project.
+for the free opensource agent that kindly helped me build this project.
 
 
