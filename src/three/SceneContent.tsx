@@ -42,6 +42,7 @@ export function SceneContent({
             frontCoverOuterImage={frontCoverOuterImage}
             backCoverOuterImage={backCoverOuterImage}
             coverColor={coverColor}
+            pageSubdivisions={10}
           />
         </Center>
         {shadows && (

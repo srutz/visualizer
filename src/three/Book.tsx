@@ -64,6 +64,10 @@ type BookProps = {
   // Initial rotation of the whole book, in radians [x, y, z]. Useful for
   // angling the book on a table without wrapping it in another group.
   rotation?: [number, number, number]
+  // Number of width-wise subdivisions for page meshes. Values > 1 enable a
+  // curved page-curl effect during flips (inspired by quick_flipbook).
+  // Default 1 = flat pages, no curl.
+  pageSubdivisions?: number
 }
 
 // Darken a hex color by a factor (0 = black, 1 = unchanged).
@@ -238,6 +242,7 @@ export function Book({
   coverColor = '#3a2414',
   rotation = [0, 0, 0],
   debug = false,
+  pageSubdivisions = 1,
 }: BookProps) {
   // step 0                 : book closed.
   // step 1                 : cover open, NO sheets flipped (page 1 on top right).
@@ -400,6 +405,7 @@ export function Book({
             backImageUrl={pageImages?.[backPage - 1] ?? null}
             debug={debug}
             onFaceOpen={onPageOpen}
+            subdivisions={pageSubdivisions}
           />
         )
       })}
@@ -625,6 +631,67 @@ function BackCover({
   )
 }
 
+/** Apply a page-curl deformation to a subdivided PlaneGeometry.
+ *  `original` holds the un-deformed positions; `positions` is the live
+ *  attribute that gets written every frame.
+ *
+ *  The curl lifts vertices away from the flat page surface using a smooth
+ *  sine-based arc, strongest in the middle of the page and at the midpoint
+ *  of the flip (rotation ≈ 90°). Inspired by quick_flipbook's bend modifier.
+ *
+ *  `planeAxis` selects which local-space axis of the PlaneGeometry carries
+ *  the page-width direction:
+ *    0 = x  (front/back face planes — PlaneGeometry(width, height) before
+ *            the mesh rotation puts them in the XZ book plane)
+ *  `liftAxis` selects which axis receives the curl displacement:
+ *    2 = z  (for the face planes, z in local space → y after the ±90° X
+ *            rotation, i.e. upward out of the page surface)
+ *    1 = y  (for the body box, y is already the thickness direction)
+ */
+function applyCurl(
+  original: Float32Array,
+  positions: THREE.BufferAttribute,
+  pageWidth: number,
+  curlHeight: number,
+  flipAngle: number,       // current rotation.z, 0 → π
+  planeAxis: number,       // 0=x
+  liftAxis: number,        // 1=y or 2=z
+  liftSign: number,        // +1 or -1 (front vs back face)
+) {
+  const sinFlip = Math.sin(flipAngle)
+  // Intensity peaks at 90° (sin=1), vanishes at 0° and 180°.
+  const intensity = sinFlip
+  if (Math.abs(intensity) < 1e-4) {
+    // No curl — copy originals back (handles the return-to-flat case).
+    for (let i = 0; i < original.length; i++) {
+      positions.array[i] = original[i]
+    }
+    positions.needsUpdate = true
+    return
+  }
+
+  const arr = positions.array as Float32Array
+  const stride = 3
+  const count = positions.count
+  for (let i = 0; i < count; i++) {
+    const base = i * stride
+    // Copy original position.
+    arr[base] = original[base]
+    arr[base + 1] = original[base + 1]
+    arr[base + 2] = original[base + 2]
+
+    // r ∈ [0, 1]: 0 at the spine edge, 1 at the free edge.
+    const axisVal = original[base + planeAxis]
+    const r = (axisVal + pageWidth / 2) / pageWidth
+
+    // Sine arc across the page width — zero at spine, zero at edge, peak
+    // in the middle.  Multiplied by flip intensity for a smooth onset.
+    const curl = Math.sin(Math.PI * r) * intensity * curlHeight * liftSign
+    arr[base + liftAxis] += curl
+  }
+  positions.needsUpdate = true
+}
+
 function Sheet({
   index,
   width,
@@ -638,6 +705,7 @@ function Sheet({
   frontImageUrl,
   backImageUrl,
   onFaceOpen,
+  subdivisions = 1,
 }: {
   index: number
   width: number
@@ -651,18 +719,60 @@ function Sheet({
   frontImageUrl: string | null | undefined
   backImageUrl: string | null | undefined
   onFaceOpen?: (pageNumber: number) => void
+  subdivisions?: number
 }) {
   const groupRef = useRef<THREE.Group>(null!)
   const target = flipped ? Math.PI : 0
+  const curl = subdivisions > 1
+
+  // Refs for the three meshes whose geometry we deform during curls.
+  const bodyRef = useRef<THREE.Mesh>(null!)
+  const frontRef = useRef<THREE.Mesh>(null!)
+  const backRef = useRef<THREE.Mesh>(null!)
+
+  // Snapshot of each geometry's original (flat) vertex positions, created
+  // once and reused every frame so we always bend from the rest shape.
+  const originals = useRef<{
+    body: Float32Array
+    front: Float32Array
+    back: Float32Array
+  } | null>(null)
+
+  // Curl height proportional to page width — gives a natural-looking arc.
+  const curlHeight = width * 0.18
 
   useFrame((_, dt) => {
     const g = groupRef.current
     if (!g) return
     g.rotation.z = THREE.MathUtils.damp(g.rotation.z, target, 5, dt)
-    // Drive Y from the rotation progress so position and angle stay in
-    // lockstep — no second damper needed, no risk of them diverging.
     const t = g.rotation.z / Math.PI
     g.position.y = THREE.MathUtils.lerp(restY, flippedY, t)
+
+    // --- page curl ---
+    if (!curl) return
+    const angle = g.rotation.z
+
+    // Lazily capture original positions on the first frame.
+    if (!originals.current) {
+      const snap = (m: THREE.Mesh) =>
+        new Float32Array((m.geometry.attributes.position as THREE.BufferAttribute).array)
+      originals.current = {
+        body: snap(bodyRef.current),
+        front: snap(frontRef.current),
+        back: snap(backRef.current),
+      }
+    }
+
+    const o = originals.current
+    // Front face plane: local x = page width, local z → lift (after -PI/2 X rotation → y)
+    applyCurl(o.front, frontRef.current.geometry.attributes.position as THREE.BufferAttribute,
+      width, curlHeight, angle, 0, 2, 1)
+    // Back face plane: same axes, opposite lift direction.
+    applyCurl(o.back, backRef.current.geometry.attributes.position as THREE.BufferAttribute,
+      width, curlHeight, angle, 0, 2, -1)
+    // Body box: local x = page width, local y = thickness direction.
+    applyCurl(o.body, bodyRef.current.geometry.attributes.position as THREE.BufferAttribute,
+      width, curlHeight, angle, 0, 1, 1)
   })
 
   const frontPage = index * 2 + 1
@@ -673,20 +783,25 @@ function Sheet({
   const backImage = useImageTexture(backImageUrl)
   const frontTexture = frontImage ?? frontFallback
   const backTexture = backImage ?? backFallback
-  //console.log('render sheet', index, { frontImageUrl, backImageUrl, frontTexture, backTexture })
 
   // Lift the page art a hair off the paper mesh so it doesn't z-fight.
   const lift = thickness / 2 + 0.0005
 
+  // Subdivision counts: only subdivide along the page width (where the
+  // curl happens). Height subdivisions add vertices without visual benefit.
+  const subdW = curl ? subdivisions : 1
+  const subdH = curl ? Math.max(1, Math.round(subdivisions / 2)) : 1
+
   return (
     <group ref={groupRef} position={[0, restY, 0]}>
-      <mesh castShadow receiveShadow position={[width / 2, 0, 0]}>
-        <boxGeometry args={[width, thickness, height]} />
+      <mesh ref={bodyRef} castShadow receiveShadow position={[width / 2, 0, 0]}>
+        <boxGeometry args={[width, thickness, height, subdW, 1, subdH]} />
         <meshStandardMaterial color="#fbfaf2" />
       </mesh>
 
       {/* Front face: top of the sheet before flipping (becomes an odd page). */}
       <mesh
+        ref={frontRef}
         position={[width / 2, lift, 0]}
         rotation={[-Math.PI / 2, 0, 0]}
         onClick={
@@ -699,13 +814,14 @@ function Sheet({
             : undefined
         }
       >
-        <planeGeometry args={[width, height]} />
+        <planeGeometry args={[width, height, subdW, subdH]} />
         <meshBasicMaterial map={frontTexture} toneMapped={false} />
       </mesh>
 
       {/* Back face: bottom of the sheet before flipping (becomes an even page
           once the sheet is flipped to the left side). */}
       <mesh
+        ref={backRef}
         position={[width / 2, -lift, 0]}
         rotation={[Math.PI / 2, 0, Math.PI]}
         onClick={
@@ -718,7 +834,7 @@ function Sheet({
             : undefined
         }
       >
-        <planeGeometry args={[width, height]} />
+        <planeGeometry args={[width, height, subdW, subdH]} />
         <meshBasicMaterial map={backTexture} toneMapped={false} />
       </mesh>
     </group>
