@@ -2,6 +2,15 @@
 
 by stepan.rutz ([https://www.stepanrutz.com](https://www.stepanrutz.com)). Licensed under MIT. 
 
+
+## Demo Video
+
+![PDF-Visualizer, realistic video](https://static.stepanrutz.com/pdfvisualizer.mp4)
+
+## Anigif
+
+![PDF-Visualizer, ANIGIF / Lowres](docs/pdfvisualizer.gif)
+
 ## Live demo
 
 [https://srutz.github.io/visualizer/](https://srutz.github.io/visualizer/)
