@@ -12,6 +12,11 @@ by stepan.rutz ([https://www.stepanrutz.com](https://www.stepanrutz.com)). Licen
 
 [https://srutz.github.io/visualizer/](https://srutz.github.io/visualizer/)
 
+
+## Screenshot
+
+![Screenshot of the visualizer](/public/screenshot.png)
+
 ## Loading your own PDF
 
 First of all... only PDFs with a A3, A4 and so on aspect ratio (1:1.414) look good. The app will try to fit other aspect ratios but results may vary.
