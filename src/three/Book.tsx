@@ -659,8 +659,10 @@ function applyCurl(
   liftSign: number,        // +1 or -1 (front vs back face)
 ) {
   const sinFlip = Math.sin(flipAngle)
-  // Intensity peaks at 90° (sin=1), vanishes at 0° and 180°.
-  const intensity = sinFlip
+  // sin² ramps much more gently near 0° and 180° than plain sin, so the
+  // curl is negligible while the page is nearly flat (avoiding z-fighting
+  // with the cover) and peaks at 90° where the page is well clear.
+  const intensity = sinFlip * sinFlip
   if (Math.abs(intensity) < 1e-4) {
     // No curl — copy originals back (handles the return-to-flat case).
     for (let i = 0; i < original.length; i++) {
