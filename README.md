@@ -15,7 +15,7 @@ by stepan.rutz ([https://www.stepanrutz.com](https://www.stepanrutz.com)). Licen
 
 ## Screenshot
 
-![Screenshot of the visualizer](/public/screenshot.png)
+![Screenshot of the visualizer](public/screenshot.png)
 
 ## Loading your own PDF
 
