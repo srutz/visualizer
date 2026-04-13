@@ -39,6 +39,8 @@ own domain) always work. And as a small tip, you don't want to allow ```*``` COR
 
 [BMF E-Rechnung (German e-invoicing standard)](https://srutz.github.io/visualizer/?proxypdf=https://tinyurl.com/47y84da6&name=E-Rechnung)
 
+[Bundestag](https://srutz.github.io/visualizer/?proxypdf=https://www.btg-bestellservice.de/pdf/40410000.pdf&maxPages=100)
+
 
 
 ## Techstack
