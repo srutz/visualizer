@@ -9,11 +9,12 @@ import { BookContainer } from "./BookContainer";
 const BsButton: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }> = Button
 
 export function App() {
-  const [showSidebar, setShowSidebar] = useState(true);
+  const zenParam = new URLSearchParams(window.location.search).has("zen");
+  const [showSidebar, setShowSidebar] = useState(!zenParam);
   const [pdfInfo, setPdfInfo] = useState<{ url: string; filename: string } | null>(null);
   const [zen, setZen] = useLocalStorage("zenmode", false);
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).has("zen")) setZen(true);
+    if (zenParam) setZen(true);
   }, []);
   const [useCovers, setUseCovers] = useLocalStorage("useCovers", false);
   const [frontText, setFrontText] = useLocalStorage("frontCoverText", "");
