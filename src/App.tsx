@@ -41,6 +41,11 @@ export function App() {
         </Offcanvas.Header>
         <Offcanvas.Body className="flex flex-col gap-1">
           <Nav className="flex-column">
+            {pdfInfo && (
+              <Nav.Link href={pdfInfo.url} download={pdfInfo.filename} className="d-flex align-items-center gap-2">
+                <FaDownload /> Download current PDF
+              </Nav.Link>
+            )}
             <Nav.Link
               onClick={() => {
                 fileInputRef.current?.click();
@@ -49,11 +54,6 @@ export function App() {
             >
               <FaUpload /> Upload your own PDF
             </Nav.Link>
-            {pdfInfo && (
-              <Nav.Link href={pdfInfo.url} download={pdfInfo.filename} className="d-flex align-items-center gap-2">
-                <FaDownload /> Download current PDF
-              </Nav.Link>
-            )}
             <Nav.Link
               href="https://github.com/srutz/visualizer"
               target="_blank"
