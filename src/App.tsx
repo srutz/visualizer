@@ -1,5 +1,5 @@
 import { useLocalStorage } from "@uidotdev/usehooks";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, Form, Nav, Offcanvas } from "react-bootstrap";
 import { FaDownload, FaGithub, FaUpload } from "react-icons/fa6";
 import { BookContainer } from "./BookContainer";
@@ -12,6 +12,9 @@ export function App() {
   const [showSidebar, setShowSidebar] = useState(true);
   const [pdfInfo, setPdfInfo] = useState<{ url: string; filename: string } | null>(null);
   const [zen, setZen] = useLocalStorage("zenmode", false);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("zen")) setZen(true);
+  }, []);
   const [useCovers, setUseCovers] = useLocalStorage("useCovers", false);
   const [frontText, setFrontText] = useLocalStorage("frontCoverText", "");
   const [backText, setBackText] = useLocalStorage("backCoverText", "");
